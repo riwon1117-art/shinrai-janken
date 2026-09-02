@@ -268,6 +268,7 @@ html,body,body *,button,input,select,textarea,
           <p>勝利枠は必ず人数分を確定させてから終了します。途中で脱落者が多くなり、勝利枠を満たせなくなる処理は行いません。</p>
           <p>例：勝利枠2で「✋✋✋✌️」なら、✌️の1人が勝利確定。✋の3人は脱落せず、残り1枠をかけて再戦します。</p>
           <p>例：勝利枠2で「✋✋✋✊」なら、✊だけ脱落。✋の3人にはリーチを付けず、3人で2枠をかけて再戦します。</p>
+          <p>例：すでに1人脱落していて、勝利枠2・残り3人が「✋✋✊」なら、✊だけ脱落し、✋の2人がそのまま勝利確定です。じゃんけん相手が残らない✊を生存させて✋にリーチを付ける処理は行いません。</p>
           <p>同じ考え方で人数が増えた場合も、残り勝利枠と各手の人数を見て、勝利枠を必ず満たせる形で続行します。</p>
 
           <h3>勝利枠</h3>
@@ -643,43 +644,49 @@ socket.on("state",s=>{
     $("result").innerHTML="—";
   }
 
-  // 直近の戦歴は、終了済みラウンドを勝者・脱落者つきでまとめて表示。
   const archived=s.roundResults||[];
-  $("history").innerHTML=archived.length
+
+  // 現ラウンドのじゃんけん履歴を常に一番上へ。
+  // 過去ラウンドの最終結果はその下に残す。
+  const currentHistory=(s.history||[]).filter(x=>x.round===s.round);
+  const currentHtml=currentHistory.length
+    ? `<div style="margin-bottom:18px">
+        <b>ROUND ${s.round} 進行中</b>
+        ${currentHistory.map(x=>`
+          <div style="margin-top:9px">
+            <b>${esc(x.title)}</b><br>
+            <span class="muted">${x.lines.map(esc).join(" / ")}</span>
+          </div>`).join("")}
+      </div>`
+    : `<div class="summary-empty" style="margin-bottom:16px">ROUND ${s.round}：まだ結果はありません</div>`;
+
+  const archivedHtml=archived.length
     ? archived.map(r=>{
         const ws=(r.winners||[]).map(p=>esc(p.name)).join("、")||"なし";
         const ls=(r.losers||[]).map(p=>esc(p.name)).join("、")||"なし";
         const resultText=r.result
           ? `<div class="muted" style="margin-top:5px">${esc(r.result.title)}</div>`
           : "";
-        return `<div style="margin-bottom:16px">
-          <b>ROUND ${r.round}</b>${resultText}
+        return `<div style="margin-top:16px;padding-top:14px;border-top:1px solid #303746">
+          <b>ROUND ${r.round} の結果</b>${resultText}
           <div style="margin-top:5px">🏆 勝者：${ws}</div>
           <div>❌ 脱落：${ls}</div>
         </div>`;
       }).join("")
-    : `<div class="summary-empty">まだ戦歴はありません</div>`;
+    : "";
 
-  // 右側の一覧は、これまでの終了ラウンド分をラウンド名つきで累積表示。
-  const pastWinners=[];
-  const pastLosers=[];
-  archived.slice().reverse().forEach(r=>{
-    (r.winners||[]).forEach(p=>pastWinners.push({...p,round:r.round}));
-    (r.losers||[]).forEach(p=>pastLosers.push({...p,round:r.round}));
-  });
+  $("history").innerHTML=currentHtml+archivedHtml;
 
-  // 現在ラウンドが終了済みで、まだ「次へ」を押していない場合も表示。
-  if(s.phase==="finished" && !archived.some(r=>r.round===s.round)){
-    s.players.filter(p=>p.winner).forEach(p=>pastWinners.push({name:p.name,color:p.color,round:s.round}));
-    s.players.filter(p=>!p.winner).forEach(p=>pastLosers.push({name:p.name,color:p.color,round:s.round}));
-  }
+  // 右側の勝者/脱落者一覧は「現在のラウンドだけ」表示。
+  const currentWinners=s.players.filter(p=>p.winner);
+  const currentLosers=s.players.filter(p=>!p.active&&!p.winner);
 
-  $("winnerList").innerHTML=pastWinners.length
-    ? pastWinners.map(p=>`<div class="summary-person summary-winner" style="--pcolor:${p.color||"#888"}"><span class="summary-dot"></span>R${p.round} ${esc(p.name)}</div>`).join("")
+  $("winnerList").innerHTML=currentWinners.length
+    ? currentWinners.map(p=>`<div class="summary-person summary-winner" style="--pcolor:${p.color||"#888"}"><span class="summary-dot"></span>${esc(p.name)}</div>`).join("")
     : `<div class="summary-empty">まだいません</div>`;
 
-  $("loserList").innerHTML=pastLosers.length
-    ? pastLosers.map(p=>`<div class="summary-person summary-loser" style="--pcolor:${p.color||"#888"}"><span class="summary-dot"></span>R${p.round} ${esc(p.name)}</div>`).join("")
+  $("loserList").innerHTML=currentLosers.length
+    ? currentLosers.map(p=>`<div class="summary-person summary-loser" style="--pcolor:${p.color||"#888"}"><span class="summary-dot"></span>${esc(p.name)}</div>`).join("")
     : `<div class="summary-empty">まだいません</div>`;
 
   if(s.overlay&&s.overlay.at!==lastOv){

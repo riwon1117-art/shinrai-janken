@@ -267,17 +267,27 @@ function resolveMain(r){
   // ただし✋の人数が残り勝利枠より多い場合は、全員をリーチにはせず、
   // ✊を脱落させて✋だけで残り枠を再戦する。
   if(hasP&&hasR&&!hasS){
-    if(papers.length>slots){
-      title="裏切り多数 → ✊が脱落、✋で再戦！";
+    if(papers.length>=slots){
       rocks.forEach(p=>{
         markLoser(p);
         lines.push(`${p.name}：敗北`);
       });
-      papers.forEach(p=>{
-        keepPlaying(p);
-        lines.push(`${p.name}：リーチなしで再戦`);
-      });
-      if(!finishIfPossible(r))r.phase="selecting";
+
+      if(papers.length===slots){
+        title="✊が脱落 → ✋が勝利枠を満たして勝利！";
+        papers.forEach(p=>{
+          markWinner(p);
+          lines.push(`${p.name}：勝利確定`);
+        });
+        finishIfPossible(r);
+      }else{
+        title="裏切り多数 → ✊が脱落、✋で再戦！";
+        papers.forEach(p=>{
+          keepPlaying(p);
+          lines.push(`${p.name}：リーチなしで再戦`);
+        });
+        if(!finishIfPossible(r))r.phase="selecting";
+      }
       return {title,lines};
     }
 
@@ -423,16 +433,27 @@ function resolveReach(r){
     const slotsAfter=remainingWinSlots(r);
 
     // 新しい✋の人数が残り枠より多いならリーチ化せず、他の手を脱落させて✋で再戦。
-    if(papers.length>slotsAfter && hasR){
+    if(papers.length>=slotsAfter && hasR){
       rocks.forEach(p=>{
         markLoser(p);
         lines.push(`${p.name}：敗北`);
       });
-      papers.forEach(p=>{
-        keepPlaying(p);
-        lines.push(`${p.name}：リーチなしで再戦`);
-      });
-      if(!finishIfPossible(r))r.phase="selecting";
+
+      if(papers.length===slotsAfter){
+        title="元リーチ者が勝利 → ✊が脱落、✋も残り枠を満たして勝利！";
+        papers.forEach(p=>{
+          markWinner(p);
+          lines.push(`${p.name}：勝利確定`);
+        });
+        finishIfPossible(r);
+      }else{
+        title="元リーチ者が勝利 → ✊が脱落、✋はリーチなしで再戦！";
+        papers.forEach(p=>{
+          keepPlaying(p);
+          lines.push(`${p.name}：リーチなしで再戦`);
+        });
+        if(!finishIfPossible(r))r.phase="selecting";
+      }
       return {title,lines};
     }
 
