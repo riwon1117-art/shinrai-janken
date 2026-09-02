@@ -80,15 +80,14 @@ function resolveMain(r){
   }
 
   // 3種類が同時に出た場合：
-  // ✋は✌️に負け、✌️は✊に負ける。✊は継続。
-  // 例）✋1人、✊3人、✌️1人 → ✋と✌️が敗北、✊3人は何も起きず継続。
+  // ✌️は「裏切り警戒」。✋（裏切ろうとした人）だけを脱落させる。
+  // ✌️自身は✊がいても脱落しない。✊もそのまま継続。
+  // 例）✋1人、✊3人、✌️1人 → ✋だけ敗北、✊3人と✌️1人は継続。
   if(hasR&&hasP&&hasS){
-    title="3種類の手を個別判定";
+    title="✌️が裏切りを阻止！";
     active.forEach(p=>{
       if(p.hand==="paper"){
-        p.active=false;p.reach=false;p.hand=null;lines.push(`${p.name}：敗北（✌️に負け）`);
-      }else if(p.hand==="scissors"){
-        p.active=false;p.reach=false;p.hand=null;lines.push(`${p.name}：敗北（✊に負け）`);
+        p.active=false;p.reach=false;p.hand=null;lines.push(`${p.name}：敗北（✌️に警戒された）`);
       }else{
         p.hand=null;lines.push(`${p.name}：継続`);
       }

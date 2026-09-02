@@ -146,6 +146,18 @@ button,input,select,textarea{font-size:17px !important}
 
 .bgm-panel{font-size:17px !important}
 
+
+/* v17: ルール説明本文専用フォント */
+@font-face{
+  font-family:'RulesFont';
+  src:url('/Corporate-Logo-Bold-ver3.otf') format('opentype');
+  font-display:swap;
+}
+.rules-body,.rules-body h3,.rules-body p,.rules-body .rule-note{
+  font-family:'RulesFont',system-ui,-apple-system,'Noto Sans JP',sans-serif !important;
+  font-synthesis:none;
+}
+
 </style>
 </head>
 <body>
@@ -167,9 +179,9 @@ button,input,select,textarea{font-size:17px !important}
           <h3>基本</h3>
           <p>全員で ✊・✋・✌️ のどれかを選び、ホストが公開すると判定されます。同じ手だけなら全員セーフです。</p>
           <h3>手の関係</h3>
-          <p>✋は✊に勝つ / ✌️は✋に勝つ / ✊は✌️に勝ちます。3種類が同時に出た場合も、それぞれの相性で個別に判定します。</p>
+          <p>✋は✊を裏切ります。✌️は裏切り警戒で、✋を出した人を脱落させます。✊と✌️が一緒に出ても、✌️は脱落しません。</p>
           <h3>例</h3>
-          <p>5人で「1=✋、2・3・4=✊、5=✌️」なら、1は✌️に負け、5は✊に負けます。2・3・4は何も起きず継続します。</p>
+          <p>5人で「1=✋、2・3・4=✊、5=✌️」なら、✌️の5が裏切りを警戒したため、✋の1だけが脱落します。2・3・4と5はそのまま継続します。</p>
           <h3>リーチ</h3>
           <p>✋が生き残って✊に勝った場合はリーチになります。リーチ本人を除いて再勝負し、残り全員が同じ手ならリーチ解除。新しい✋や脱落者が発生すると元リーチ者は勝利確定です。</p>
           <h3>勝利</h3>
