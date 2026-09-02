@@ -548,8 +548,12 @@ io.on("connection",s=>{
 
   s.on("setWinTarget",n=>{
     const r=roomOf(s);
-    if(!r||r.hostId!==s.id||r.round!==1)return;
-    r.winTarget=Math.max(1,Math.min(20,+n||1));send(r);
+    if(!r||r.hostId!==s.id)return;
+
+    // ROUND1限定にせず、各ラウンドで勝利枠を変更可能。
+    // 変更した値はそのまま次ラウンドにも引き継ぐ。
+    r.winTarget=Math.max(1,Math.min(20,+n||1));
+    send(r);
   });
 
   s.on("setPlayerColor",({playerId,color})=>{
