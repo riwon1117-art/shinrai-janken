@@ -6,6 +6,12 @@
 <title>信頼ジャンケン ONLINE</title>
 <script src="/socket.io/socket.io.js"></script>
 <style>
+@font-face{
+  font-family:'GameFont';
+  src:url('/851Gkktt_005.ttf') format('truetype');
+  font-display:swap;
+}
+
 *{box-sizing:border-box}
 :root{--bg:#080a0f;--panel:#141821;--line:#2b3240;--sub:#aab2c0}
 body{margin:0;background:var(--bg);color:#fff;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
@@ -38,6 +44,16 @@ body{margin:0;background:var(--bg);color:#fff;font-family:system-ui,-apple-syste
 @media(max-width:1050px){
   .history-summary-grid{grid-template-columns:1fr}
 }
+.rules-wrap{margin-top:18px}
+.rules-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border:1px solid #303746;border-radius:14px;background:#0d1017;color:#fff;font-size:17px;font-weight:1000;cursor:pointer}
+.rules-body{display:none;margin-top:10px;padding:18px;border:1px solid #303746;border-radius:14px;background:#0d1017;line-height:1.8}
+.rules-body.open{display:block}.rules-body h3{margin:12px 0 5px}.rules-body p{margin:5px 0;color:#d8deea}
+
+.bgm-panel{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding:12px 14px;border:1px solid #303746;border-radius:14px;background:#0d1017}
+.bgm-panel button{min-width:110px}
+.bgm-panel input[type=range]{width:min(260px,55vw)}
+.bgm-panel .vol-label{min-width:62px;text-align:right;font-weight:900}
+
 @media(max-width:620px){
   .summary-side{grid-template-columns:1fr}
 }
@@ -212,6 +228,40 @@ const SESSION_KEY="shinraiJankenSessionV8";
 let session=null;
 try{session=JSON.parse(localStorage.getItem(SESSION_KEY)||"null")}catch(e){session=null}
 const $=x=>document.getElementById(x);
+const bgmAudio = $("bgmAudio");
+let bgmWanted = localStorage.getItem("shinraiBgmOn")==="1";
+let bgmVol = Number(localStorage.getItem("shinraiBgmVol") ?? 35);
+if(!Number.isFinite(bgmVol)) bgmVol=35;
+bgmVol=Math.max(0,Math.min(100,bgmVol));
+bgmAudio.volume=bgmVol/100;
+
+function refreshBgmUi(){
+  const t=$("bgmToggle"),s=$("bgmVolume"),l=$("bgmVolumeLabel");
+  if(t){t.textContent=bgmWanted?"ON":"OFF";t.classList.toggle("primary",bgmWanted);t.classList.toggle("secondary",!bgmWanted)}
+  if(s)s.value=String(bgmVol);
+  if(l)l.textContent=`${Math.round(bgmVol)}%`;
+}
+async function startBgm(){
+  bgmWanted=true; localStorage.setItem("shinraiBgmOn","1"); refreshBgmUi();
+  try{ await bgmAudio.play(); }catch(e){}
+}
+function stopBgm(){
+  bgmWanted=false; localStorage.setItem("shinraiBgmOn","0"); bgmAudio.pause(); refreshBgmUi();
+}
+function toggleBgm(){ bgmWanted?stopBgm():startBgm(); }
+function setBgmVolume(v){
+  bgmVol=Math.max(0,Math.min(100,Number(v)||0));
+  bgmAudio.volume=bgmVol/100;
+  localStorage.setItem("shinraiBgmVol",String(bgmVol));
+  refreshBgmUi();
+}
+refreshBgmUi();
+
+// Browserの自動再生制限対策：前回ONだった端末は最初の操作で再開
+document.addEventListener("pointerdown",()=>{
+  if(bgmWanted && bgmAudio.paused) bgmAudio.play().catch(()=>{});
+},{passive:true});
+
 const HAND={rock:"✊",paper:"✋",scissors:"✌️"};
 const HANDNAME={rock:"信頼",paper:"裏切り",scissors:"裏切り警戒"};
 
@@ -289,6 +339,7 @@ function resetG(){if(confirm("リセットしますか？"))socket.emit("reset")
 function setTarget(n){socket.emit("setWinTarget",+n)}
 function setPlayerColor(playerId,color){socket.emit("setPlayerColor",{playerId,color})}
 function overlay(){ensureAudio();socket.emit("overlay",{text:"構えて！",duration:2600})}
+function toggleRules(){const b=$("rulesBody"),a=$("rulesArrow");const o=b.classList.toggle("open");a.textContent=o?"▲":"▼"}
 
 function tryResume(){
   if(!session||!session.code||!session.name)return;
@@ -415,5 +466,6 @@ function esc(x){
   return String(x).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))
 }
 </script>
+  <audio id="bgmAudio" src="/bgm.mp3" loop preload="auto"></audio>
 </body>
 </html>

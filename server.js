@@ -68,35 +68,53 @@ function selectablePlayers(r){
 
 function resolveMain(r){
   const active=[...r.players.values()].filter(p=>p.active&&!p.winner);
-  const hs=active.map(p=>p.hand),hasP=hs.includes("paper"),hasS=hs.includes("scissors");
+  const hs=active.map(p=>p.hand), mark={rock:"✊",paper:"✋",scissors:"✌️"};
+  const hasR=hs.includes("rock"),hasP=hs.includes("paper"),hasS=hs.includes("scissors");
   let title="",lines=[];
-  const allSame=hs.length>0 && hs.every(h=>h===hs[0]);
+  const allSame=hs.length>0&&hs.every(h=>h===hs[0]);
 
   if(allSame){
-    const mark={rock:"✊",paper:"✋",scissors:"✌️"}[hs[0]]||"";
-    title=`全員${mark}！ 全員セーフ`;
+    title=`全員${mark[hs[0]]}！ 全員セーフ`;
     active.forEach(p=>lines.push(`${p.name}：セーフ`));
-  }else if(hasP){
-    title="✋が出た！ リーチ発生";
-    active.forEach(p=>{
-      if(p.hand==="paper"){p.reach=true;lines.push(`${p.name}：リーチ`)}
-      else if(p.hand==="scissors"){p.active=false;p.hand=null;lines.push(`${p.name}：脱落`)}
-      else lines.push(`${p.name}：継続`)
-    });
-    if(finishIfPossible(r)){
-      title+=" → 勝利枠確定！";
-    }else{
-      r.phase="reach";
-      active.forEach(p=>{if(p.active)p.hand=null});
-    }
-  }else{
-    title="✌️が脱落";
-    active.forEach(p=>{
-      if(p.hand==="scissors"){p.active=false;p.hand=null;lines.push(`${p.name}：脱落`)}
-      else lines.push(`${p.name}：セーフ`)
-    });
-    finishIfPossible(r);
+    return {title,lines};
   }
+
+  // 3種類が同時に出た場合：
+  // ✋は✌️に負け、✌️は✊に負ける。✊は継続。
+  // 例）✋1人、✊3人、✌️1人 → ✋と✌️が敗北、✊3人は何も起きず継続。
+  if(hasR&&hasP&&hasS){
+    title="3種類の手を個別判定";
+    active.forEach(p=>{
+      if(p.hand==="paper"){
+        p.active=false;p.reach=false;p.hand=null;lines.push(`${p.name}：敗北（✌️に負け）`);
+      }else if(p.hand==="scissors"){
+        p.active=false;p.reach=false;p.hand=null;lines.push(`${p.name}：敗北（✊に負け）`);
+      }else{
+        p.hand=null;lines.push(`${p.name}：継続`);
+      }
+    });
+    if(finishIfPossible(r)) title+=" → 勝利枠確定！";
+    else r.phase="selecting";
+    return {title,lines};
+  }
+
+  let loserHand=null,winnerHand=null;
+  if(hasP&&hasR){winnerHand="paper";loserHand="rock"}
+  else if(hasS&&hasP){winnerHand="scissors";loserHand="paper"}
+  else if(hasR&&hasS){winnerHand="rock";loserHand="scissors"}
+
+  title=`${mark[winnerHand]}が${mark[loserHand]}に勝利`;
+  active.forEach(p=>{
+    if(p.hand===loserHand){
+      p.active=false;p.reach=false;p.hand=null;lines.push(`${p.name}：敗北`);
+    }else if(p.hand==="paper"){
+      p.reach=true;p.hand=null;lines.push(`${p.name}：リーチ`);
+    }else{
+      p.hand=null;lines.push(`${p.name}：継続`);
+    }
+  });
+  if(finishIfPossible(r)) title+=" → 勝利枠確定！";
+  else r.phase=[...r.players.values()].some(p=>p.reach&&p.active&&!p.winner)?"reach":"selecting";
   return {title,lines};
 }
 
