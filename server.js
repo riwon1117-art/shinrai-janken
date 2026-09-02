@@ -80,6 +80,35 @@ function resolveMain(r){
   let title="",lines=[];
   const allSame=hs.length>0&&hs.every(h=>h===hs[0]);
 
+  // 残り2人だけは通常のじゃんけん。
+  if(active.length===2){
+    if(allSame){
+      title=`残り2人：あいこ（${mark[hs[0]]}）`;
+      active.forEach(p=>{p.hand=null;lines.push(`${p.name}：継続`)});
+      r.phase="selecting";
+      return {title,lines};
+    }
+
+    let winnerHand=null,loserHand=null;
+    if(hasR&&hasS){winnerHand="rock";loserHand="scissors"}
+    else if(hasS&&hasP){winnerHand="scissors";loserHand="paper"}
+    else if(hasP&&hasR){winnerHand="paper";loserHand="rock"}
+
+    title=`残り2人：${mark[winnerHand]}の勝ち！`;
+    active.forEach(p=>{
+      if(p.hand===winnerHand){
+        p.winner=true;p.active=false;p.reach=false;p.hand=null;
+        lines.push(`${p.name}：勝利確定`);
+      }else{
+        p.active=false;p.reach=false;p.hand=null;
+        lines.push(`${p.name}：敗北`);
+      }
+    });
+    finishIfPossible(r);
+    r.phase="finished";
+    return {title,lines};
+  }
+
   if(allSame){
     title=`全員${mark[hs[0]]}！ 全員継続`;
     active.forEach(p=>{p.hand=null;lines.push(`${p.name}：継続`)});
@@ -143,6 +172,13 @@ function resolveMain(r){
 }
 
 function resolveReach(r){
+  const remaining=[...r.players.values()].filter(p=>p.active&&!p.winner);
+  if(remaining.length===2){
+    // 残り2人になったらリーチ状態を解除して、2人とも通常じゃんけんへ戻す。
+    remaining.forEach(p=>{p.reach=false;p.hand=null});
+    r.phase="selecting";
+    return {title:"残り2人 → 通常じゃんけんへ",lines:remaining.map(p=>`${p.name}：最終じゃんけん`)};
+  }
   const reachers=[...r.players.values()].filter(p=>p.reach&&p.active&&!p.winner);
   const others=[...r.players.values()].filter(p=>p.active&&!p.winner&&!p.reach);
   const hs=others.map(p=>p.hand);
