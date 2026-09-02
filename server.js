@@ -51,18 +51,34 @@ function reclaimByName(r,s,name,wantsHost=false){
 
 function finishIfPossible(r){
   const winners=[...r.players.values()].filter(p=>p.winner);
-  if(winners.length>=r.winTarget){
-    // 勝利枠に達した時点で、まだ勝っていない参加者は全員敗北。
-    [...r.players.values()].forEach(p=>{
-      if(!p.winner && p.active){
-        p.active=false;
-        p.reach=false;
-        p.hand=null;
-      }
+  const active=[...r.players.values()].filter(p=>p.active&&!p.winner);
+  const remainingSlots=Math.max(0,r.winTarget-winners.length);
+
+  // すでに勝利者数が勝利枠に達している場合は終了。
+  if(remainingSlots===0){
+    active.forEach(p=>{
+      p.active=false;
+      p.reach=false;
+      p.hand=null;
     });
     r.phase="finished";
     return true;
   }
+
+  // 残っている人数が残りの勝利枠以下になったら、残った人は全員勝利。
+  // 例：勝利枠2・勝者0人・生存2人 → 2人とも勝利。
+  //     勝利枠2・勝者1人・生存1人 → 残り1人も勝利。
+  if(active.length<=remainingSlots){
+    active.forEach(p=>{
+      p.winner=true;
+      p.active=false;
+      p.reach=false;
+      p.hand=null;
+    });
+    r.phase="finished";
+    return true;
+  }
+
   return false;
 }
 
@@ -75,6 +91,15 @@ function selectablePlayers(r){
 
 function resolveMain(r){
   const active=[...r.players.values()].filter(p=>p.active&&!p.winner);
+
+  // 残人数が残り勝利枠以下なら、じゃんけんせず全員勝利。
+  if(finishIfPossible(r)){
+    const justWon=active.filter(p=>p.winner);
+    return {
+      title:"残り人数が勝利枠に到達 → 全員勝利！",
+      lines:justWon.map(p=>`${p.name}：勝利確定`)
+    };
+  }
   const hs=active.map(p=>p.hand), mark={rock:"✊",paper:"✋",scissors:"✌️"};
   const hasR=hs.includes("rock"),hasP=hs.includes("paper"),hasS=hs.includes("scissors");
   let title="",lines=[];
@@ -173,6 +198,15 @@ function resolveMain(r){
 
 function resolveReach(r){
   const remaining=[...r.players.values()].filter(p=>p.active&&!p.winner);
+
+  // リーチ中でも、残人数が残り勝利枠以下なら残った人を全員勝利にする。
+  if(finishIfPossible(r)){
+    const justWon=remaining.filter(p=>p.winner);
+    return {
+      title:"残り人数が勝利枠に到達 → 全員勝利！",
+      lines:justWon.map(p=>`${p.name}：勝利確定`)
+    };
+  }
   if(remaining.length===2){
     // 残り2人になったらリーチ状態を解除して、2人とも通常じゃんけんへ戻す。
     remaining.forEach(p=>{p.reach=false;p.hand=null});
