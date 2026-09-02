@@ -112,8 +112,16 @@ function resolveMain(r){
       p.hand=null;lines.push(`${p.name}：継続`);
     }
   });
-  if(finishIfPossible(r)) title+=" → 勝利枠確定！";
-  else r.phase=[...r.players.values()].some(p=>p.reach&&p.active&&!p.winner)?"reach":"selecting";
+  const hasReach=[...r.players.values()].some(p=>p.reach&&p.active&&!p.winner);
+  // リーチが発生した場合は、残人数が勝利枠以下でも先にリーチ判定を行う。
+  // 例：勝利枠1で最後の1人が✋リーチになっても、その場では勝利確定にしない。
+  if(hasReach){
+    r.phase="reach";
+  }else if(finishIfPossible(r)){
+    title+=" → 勝利枠確定！";
+  }else{
+    r.phase="selecting";
+  }
   return {title,lines};
 }
 
