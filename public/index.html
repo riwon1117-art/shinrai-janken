@@ -116,6 +116,17 @@ button:active{transform:scale(.96)}
 }
 
 button,input,select,textarea{font-family:'GameFont',system-ui,-apple-system,'Noto Sans JP',sans-serif}
+
+/* v14: このフォントは単一ウェイトなので疑似太字を禁止。文字サイズは変更しない */
+body,button,input,select,textarea{
+  font-synthesis:none;
+}
+.logo,.code,.card-name,.status-badge,.offline-note,.summary-person,
+.rules-toggle,.bgm-panel,.submit-state,button,.reveal-title,
+h1,h2,h3,strong,b{
+  font-weight:400 !important;
+}
+
 </style>
 </head>
 <body>
@@ -259,37 +270,77 @@ const $=x=>document.getElementById(x);
 const bgmAudio = new Audio("/bgm.mp3");
 bgmAudio.loop=true;
 bgmAudio.preload="auto";
-let bgmWanted = localStorage.getItem("shinraiBgmOn")==="1";
+
+let bgmWanted = localStorage.getItem("shinraiBgmOn");
+bgmWanted = bgmWanted===null ? true : bgmWanted==="1"; // 初回はON
 let bgmVol = Number(localStorage.getItem("shinraiBgmVol") ?? 35);
 if(!Number.isFinite(bgmVol)) bgmVol=35;
 bgmVol=Math.max(0,Math.min(100,bgmVol));
 bgmAudio.volume=bgmVol/100;
 
+const bgmPauseReasons=new Set();
+const bgmPauseTimers={};
+
 function refreshBgmUi(){
   const t=$("bgmToggle"),s=$("bgmVolume"),l=$("bgmVolumeLabel");
-  if(t){t.textContent=bgmWanted?"ON":"OFF";t.classList.toggle("primary",bgmWanted);t.classList.toggle("secondary",!bgmWanted)}
+  if(t){
+    t.textContent=bgmWanted?"ON":"OFF";
+    t.classList.toggle("primary",bgmWanted);
+    t.classList.toggle("secondary",!bgmWanted);
+  }
   if(s)s.value=String(bgmVol);
   if(l)l.textContent=`${Math.round(bgmVol)}%`;
 }
-async function startBgm(){
-  bgmWanted=true; localStorage.setItem("shinraiBgmOn","1"); refreshBgmUi();
-  try{ await bgmAudio.play(); }catch(e){}
+
+async function playBgmIfAllowed(){
+  if(!bgmWanted || bgmPauseReasons.size>0)return;
+  try{await bgmAudio.play()}catch(e){}
 }
+
+function startBgm(){
+  bgmWanted=true;
+  localStorage.setItem("shinraiBgmOn","1");
+  refreshBgmUi();
+  playBgmIfAllowed();
+}
+
 function stopBgm(){
-  bgmWanted=false; localStorage.setItem("shinraiBgmOn","0"); bgmAudio.pause(); refreshBgmUi();
+  bgmWanted=false;
+  localStorage.setItem("shinraiBgmOn","0");
+  bgmAudio.pause();
+  refreshBgmUi();
 }
-function toggleBgm(){ bgmWanted?stopBgm():startBgm(); }
+
+function toggleBgm(){
+  bgmWanted?stopBgm():startBgm();
+}
+
 function setBgmVolume(v){
   bgmVol=Math.max(0,Math.min(100,Number(v)||0));
   bgmAudio.volume=bgmVol/100;
   localStorage.setItem("shinraiBgmVol",String(bgmVol));
   refreshBgmUi();
+  // 音量変更では再読み込み・停止をしない
+  if(bgmWanted && bgmPauseReasons.size===0 && bgmAudio.paused)playBgmIfAllowed();
 }
+
+function pauseBgmFor(reason,duration){
+  bgmPauseReasons.add(reason);
+  bgmAudio.pause();
+  if(bgmPauseTimers[reason])clearTimeout(bgmPauseTimers[reason]);
+  bgmPauseTimers[reason]=setTimeout(()=>{
+    bgmPauseReasons.delete(reason);
+    delete bgmPauseTimers[reason];
+    playBgmIfAllowed();
+  },Math.max(0,duration||0));
+}
+
 refreshBgmUi();
 
-// Browserの自動再生制限対策：前回ONだった端末は最初の操作で再開
+// 自動再生制限対策：BGMがONなら、最初のユーザー操作で開始。
+// 以後、他のボタンを押してもBGM自体をloadし直さない。
 document.addEventListener("pointerdown",()=>{
-  if(bgmWanted && bgmAudio.paused) bgmAudio.play().catch(()=>{});
+  if(bgmWanted && bgmPauseReasons.size===0 && bgmAudio.paused)playBgmIfAllowed();
 },{passive:true});
 
 const HAND={rock:"✊",paper:"✋",scissors:"✌️"};
@@ -301,14 +352,13 @@ const revealSound=new Audio("/reveal.mp3");
 revealSound.preload="auto";
 
 function ensureAudio(){
-  // ブラウザの自動再生制限解除用。参加/作成ボタンなどの操作時に一度呼ばれる。
+  // 効果音だけ準備。BGMはここでloadし直さない。
   try{
-    readyDrum.load();
-    revealSound.load();
-    try{bgmAudio.load()}catch(e){}
+    if(readyDrum.readyState===0)readyDrum.load();
+    if(revealSound.readyState===0)revealSound.load();
   }catch(e){}
 }
-document.addEventListener("pointerdown",ensureAudio,{once:false});
+document.addEventListener("pointerdown",ensureAudio,{once:true});
 
 function playReadyDrum(){
   try{
@@ -469,6 +519,7 @@ socket.on("state",s=>{
     lastOv=s.overlay.at;
     $("ovtext").textContent=s.overlay.text;
     $("overlay").classList.remove("hidden");
+    pauseBgmFor("ready",s.overlay.duration||2600);
     playReadyDrum();
     setTimeout(()=>$("overlay").classList.add("hidden"),s.overlay.duration);
   }
@@ -478,6 +529,7 @@ socket.on("state",s=>{
 
 socket.on("revealBurst",d=>{
   ensureAudio();
+  pauseBgmFor("reveal",d.duration||2400);
   playRevealSound();
   $("revealGrid").innerHTML=d.players.map((p,i)=>`<div class="reveal-card" style="--pcolor:${p.color||"#8b5cf6"};animation-delay:${Math.min(i*45,250)}ms">
     <div class="reveal-name">${esc(p.name)}</div>
