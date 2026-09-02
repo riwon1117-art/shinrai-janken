@@ -17,7 +17,9 @@ function publicState(r,viewerId){
       id:p.id,name:p.name,active:p.active,reach:p.reach,winner:p.winner,color:p.color,
       submitted:!!p.hand,connected:p.connected
     })),
-    history:r.history.slice(0,10)
+    history:r.history.slice(0,20),
+    currentResult:r.currentResult||null,
+    roundResults:(r.roundResults||[]).slice(0,20)
   };
 }
 
@@ -54,7 +56,7 @@ function finishIfPossible(r){
   const active=[...r.players.values()].filter(p=>p.active&&!p.winner);
   const remainingSlots=Math.max(0,r.winTarget-winners.length);
 
-  // すでに勝利者数が勝利枠に達している場合は終了。
+  // 勝者数が勝利枠に達したときだけ終了。
   if(remainingSlots===0){
     active.forEach(p=>{
       p.active=false;
@@ -65,10 +67,9 @@ function finishIfPossible(r){
     return true;
   }
 
-  // 残っている人数が残りの勝利枠以下になったら、残った人は全員勝利。
-  // 例：勝利枠2・勝者0人・生存2人 → 2人とも勝利。
-  //     勝利枠2・勝者1人・生存1人 → 残り1人も勝利。
-  if(active.length<=remainingSlots){
+  // 残人数と残り勝利枠が「同数」のときだけ、残った全員を勝利にする。
+  // active.length < remainingSlots の状態では絶対に終了させない。
+  if(active.length===remainingSlots){
     active.forEach(p=>{
       p.winner=true;
       p.active=false;
@@ -82,6 +83,31 @@ function finishIfPossible(r){
   return false;
 }
 
+function remainingWinSlots(r){
+  const winners=[...r.players.values()].filter(p=>p.winner).length;
+  return Math.max(0,r.winTarget-winners);
+}
+
+function markWinner(p){
+  p.winner=true;
+  p.active=false;
+  p.reach=false;
+  p.hand=null;
+}
+
+function markLoser(p){
+  p.active=false;
+  p.reach=false;
+  p.hand=null;
+}
+
+function keepPlaying(p){
+  p.active=true;
+  p.winner=false;
+  p.reach=false;
+  p.hand=null;
+}
+
 function selectablePlayers(r){
   if(r.phase==="reach"){
     return [...r.players.values()].filter(p=>p.active&&!p.winner&&!p.reach);
@@ -92,7 +118,7 @@ function selectablePlayers(r){
 function resolveMain(r){
   const active=[...r.players.values()].filter(p=>p.active&&!p.winner);
 
-  // 残人数が残り勝利枠以下なら、じゃんけんせず全員勝利。
+  // 残人数と残り勝利枠が同じなら、その時点で全員勝利。
   if(finishIfPossible(r)){
     const justWon=active.filter(p=>p.winner);
     return {
@@ -100,39 +126,15 @@ function resolveMain(r){
       lines:justWon.map(p=>`${p.name}：勝利確定`)
     };
   }
+
+  const slots=remainingWinSlots(r);
   const hs=active.map(p=>p.hand), mark={rock:"✊",paper:"✋",scissors:"✌️"};
-  const hasR=hs.includes("rock"),hasP=hs.includes("paper"),hasS=hs.includes("scissors");
+  const rocks=active.filter(p=>p.hand==="rock");
+  const papers=active.filter(p=>p.hand==="paper");
+  const scissors=active.filter(p=>p.hand==="scissors");
+  const hasR=rocks.length>0,hasP=papers.length>0,hasS=scissors.length>0;
   let title="",lines=[];
   const allSame=hs.length>0&&hs.every(h=>h===hs[0]);
-
-  // 残り2人だけは通常のじゃんけん。
-  if(active.length===2){
-    if(allSame){
-      title=`残り2人：あいこ（${mark[hs[0]]}）`;
-      active.forEach(p=>{p.hand=null;lines.push(`${p.name}：継続`)});
-      r.phase="selecting";
-      return {title,lines};
-    }
-
-    let winnerHand=null,loserHand=null;
-    if(hasR&&hasS){winnerHand="rock";loserHand="scissors"}
-    else if(hasS&&hasP){winnerHand="scissors";loserHand="paper"}
-    else if(hasP&&hasR){winnerHand="paper";loserHand="rock"}
-
-    title=`残り2人：${mark[winnerHand]}の勝ち！`;
-    active.forEach(p=>{
-      if(p.hand===winnerHand){
-        p.winner=true;p.active=false;p.reach=false;p.hand=null;
-        lines.push(`${p.name}：勝利確定`);
-      }else{
-        p.active=false;p.reach=false;p.hand=null;
-        lines.push(`${p.name}：敗北`);
-      }
-    });
-    finishIfPossible(r);
-    r.phase="finished";
-    return {title,lines};
-  }
 
   if(allSame){
     title=`全員${mark[hs[0]]}！ 全員継続`;
@@ -141,50 +143,153 @@ function resolveMain(r){
     return {title,lines};
   }
 
-  // ✋と✌️が同時に出たら、場に✊がいても関係なく✋だけ即脱落。
-  // ✌️は「裏切りを見抜いた」ので生存。
+  // 残り2人だけは通常のじゃんけん。
+  // ただし残り勝利枠も2なら上の finishIfPossible で2人とも勝利済み。
+  if(active.length===2){
+    let winnerHand=null;
+    if(hasR&&hasS)winnerHand="rock";
+    else if(hasS&&hasP)winnerHand="scissors";
+    else if(hasP&&hasR)winnerHand="paper";
+
+    title=`残り2人：${mark[winnerHand]}の勝ち！`;
+    active.forEach(p=>{
+      if(p.hand===winnerHand){
+        markWinner(p);
+        lines.push(`${p.name}：勝利確定`);
+      }else{
+        markLoser(p);
+        lines.push(`${p.name}：敗北`);
+      }
+    });
+    finishIfPossible(r);
+    return {title,lines};
+  }
+
+  // ===== ✋ と ✌️ がいる場合 =====
+  // 基本は✌️が裏切りを見抜く。
+  // ただし✋を全員脱落させると勝利枠を満たせなくなる場合は、
+  // ✌️側（＋三すくみなら✊側も生存側）を先に勝利扱いにして、
+  // ✋は脱落させず「残り枠」を争う。
   if(hasP&&hasS){
-    title="✌️が裏切りを阻止！";
-    active.forEach(p=>{
-      if(p.hand==="paper"){
-        p.active=false;p.reach=false;p.hand=null;
+    const survivors=active.filter(p=>p.hand!=="paper");
+
+    if(survivors.length<slots){
+      title="✌️が裏切りを阻止 → 生存側が勝利、✋で残り枠を再戦！";
+      survivors.forEach(p=>{
+        markWinner(p);
+        lines.push(`${p.name}：勝利確定`);
+      });
+      papers.forEach(p=>{
+        keepPlaying(p);
+        lines.push(`${p.name}：残り勝利枠をかけて再戦`);
+      });
+
+      if(!finishIfPossible(r))r.phase="selecting";
+      return {title,lines};
+    }
+
+    // 生存側だけで勝利枠をちょうど満たせるなら、そのまま勝利確定。
+    if(survivors.length===slots){
+      title="✌️が裏切りを阻止 → 生存側が勝利！";
+      survivors.forEach(p=>{
+        markWinner(p);
+        lines.push(`${p.name}：勝利確定`);
+      });
+      papers.forEach(p=>{
+        markLoser(p);
         lines.push(`${p.name}：敗北（裏切りを警戒された）`);
-      }else{
-        p.hand=null;
-        lines.push(`${p.name}：継続`);
-      }
+      });
+      finishIfPossible(r);
+      return {title,lines};
+    }
+
+    // 生存側が勝利枠より多いなら、✋だけ脱落して生存側で続行。
+    title="✌️が裏切りを阻止！";
+    papers.forEach(p=>{
+      markLoser(p);
+      lines.push(`${p.name}：敗北（裏切りを警戒された）`);
+    });
+    survivors.forEach(p=>{
+      p.hand=null;
+      lines.push(`${p.name}：継続`);
     });
     if(!finishIfPossible(r))r.phase="selecting";
     return {title,lines};
   }
 
-  // ✌️を出したのに✋が来ず、他に✊がいる場合は✌️が読み外しで脱落。
+  // ===== ✊ と ✌️（✋なし） =====
+  // ✌️は読み外し。考え方は上と同じで、勝利枠不足になるなら✊を先に勝者化し、
+  // ✌️は残り枠を争う。
   if(hasR&&hasS&&!hasP){
-    title="✌️の警戒外れ！";
-    active.forEach(p=>{
-      if(p.hand==="scissors"){
-        p.active=false;p.reach=false;p.hand=null;
+    if(rocks.length<slots){
+      title="✌️の警戒外れ → ✊が勝利、✌️で残り枠を再戦！";
+      rocks.forEach(p=>{
+        markWinner(p);
+        lines.push(`${p.name}：勝利確定`);
+      });
+      scissors.forEach(p=>{
+        keepPlaying(p);
+        lines.push(`${p.name}：残り勝利枠をかけて再戦`);
+      });
+      if(!finishIfPossible(r))r.phase="selecting";
+      return {title,lines};
+    }
+
+    if(rocks.length===slots){
+      title="✌️の警戒外れ → ✊が勝利！";
+      rocks.forEach(p=>{
+        markWinner(p);
+        lines.push(`${p.name}：勝利確定`);
+      });
+      scissors.forEach(p=>{
+        markLoser(p);
         lines.push(`${p.name}：敗北（裏切り警戒が外れた）`);
-      }else{
-        p.hand=null;
-        lines.push(`${p.name}：継続`);
-      }
+      });
+      finishIfPossible(r);
+      return {title,lines};
+    }
+
+    title="✌️の警戒外れ！";
+    scissors.forEach(p=>{
+      markLoser(p);
+      lines.push(`${p.name}：敗北（裏切り警戒が外れた）`);
+    });
+    rocks.forEach(p=>{
+      p.hand=null;
+      lines.push(`${p.name}：継続`);
     });
     if(!finishIfPossible(r))r.phase="selecting";
     return {title,lines};
   }
 
-  // ✌️がいない状態で✋が出たら、✋だけリーチ。✊は脱落しない。
-  if(hasP){
+  // ===== ✋ と ✊（✌️なし） =====
+  // 通常は✋がリーチ。
+  // ただし✋の人数が残り勝利枠より多い場合は、全員をリーチにはせず、
+  // ✊を脱落させて✋だけで残り枠を再戦する。
+  if(hasP&&hasR&&!hasS){
+    if(papers.length>slots){
+      title="裏切り多数 → ✊が脱落、✋で再戦！";
+      rocks.forEach(p=>{
+        markLoser(p);
+        lines.push(`${p.name}：敗北`);
+      });
+      papers.forEach(p=>{
+        keepPlaying(p);
+        lines.push(`${p.name}：リーチなしで再戦`);
+      });
+      if(!finishIfPossible(r))r.phase="selecting";
+      return {title,lines};
+    }
+
     title="✋がリーチ！";
-    active.forEach(p=>{
-      if(p.hand==="paper"){
-        p.reach=true;p.hand=null;
-        lines.push(`${p.name}：リーチ`);
-      }else{
-        p.hand=null;
-        lines.push(`${p.name}：継続`);
-      }
+    papers.forEach(p=>{
+      p.reach=true;
+      p.hand=null;
+      lines.push(`${p.name}：リーチ`);
+    });
+    rocks.forEach(p=>{
+      p.hand=null;
+      lines.push(`${p.name}：継続`);
     });
     r.phase="reach";
     return {title,lines};
@@ -199,7 +304,6 @@ function resolveMain(r){
 function resolveReach(r){
   const remaining=[...r.players.values()].filter(p=>p.active&&!p.winner);
 
-  // リーチ中でも、残人数が残り勝利枠以下なら残った人を全員勝利にする。
   if(finishIfPossible(r)){
     const justWon=remaining.filter(p=>p.winner);
     return {
@@ -207,20 +311,24 @@ function resolveReach(r){
       lines:justWon.map(p=>`${p.name}：勝利確定`)
     };
   }
+
+  // 残り2人になったらリーチ状態を解除して通常じゃんけんへ。
   if(remaining.length===2){
-    // 残り2人になったらリーチ状態を解除して、2人とも通常じゃんけんへ戻す。
     remaining.forEach(p=>{p.reach=false;p.hand=null});
     r.phase="selecting";
     return {title:"残り2人 → 通常じゃんけんへ",lines:remaining.map(p=>`${p.name}：最終じゃんけん`)};
   }
+
   const reachers=[...r.players.values()].filter(p=>p.reach&&p.active&&!p.winner);
   const others=[...r.players.values()].filter(p=>p.active&&!p.winner&&!p.reach);
   const hs=others.map(p=>p.hand);
-  const hasR=hs.includes("rock"),hasP=hs.includes("paper"),hasS=hs.includes("scissors");
+  const rocks=others.filter(p=>p.hand==="rock");
+  const papers=others.filter(p=>p.hand==="paper");
+  const scissors=others.filter(p=>p.hand==="scissors");
+  const hasR=rocks.length>0,hasP=papers.length>0,hasS=scissors.length>0;
   let title="",lines=[];
   const allSame=hs.length>0&&hs.every(h=>h===hs[0]);
 
-  // リーチ以外が全員同じ手なら元リーチ解除。
   if(allSame){
     title="全員同じ手 → リーチ解除！";
     reachers.forEach(p=>{
@@ -235,68 +343,112 @@ function resolveReach(r){
     return {title,lines};
   }
 
-  // ✋と✌️が同時に出たら✋だけ即脱落。脱落者が出たので元リーチ者は勝利。
+  // ✋と✌️：元リーチ者は勝利。
   if(hasP&&hasS){
     title="✌️が裏切りを阻止 → 元リーチ者が勝利！";
     reachers.forEach(p=>{
-      p.reach=false;p.active=false;p.winner=true;p.hand=null;
+      markWinner(p);
       lines.push(`${p.name}：勝利確定`);
     });
-    others.forEach(p=>{
-      if(p.hand==="paper"){
-        p.active=false;p.reach=false;p.hand=null;
-        lines.push(`${p.name}：敗北（裏切りを警戒された）`);
-      }else{
+
+    const slotsAfter=remainingWinSlots(r);
+    const safeOthers=others.filter(p=>p.hand!=="paper");
+
+    // ✋を全滅させると残り枠を埋められないなら、✋を再戦へ残す。
+    if(safeOthers.length<slotsAfter){
+      safeOthers.forEach(p=>{
         p.hand=null;
         lines.push(`${p.name}：継続`);
-      }
-    });
+      });
+      papers.forEach(p=>{
+        keepPlaying(p);
+        lines.push(`${p.name}：残り勝利枠をかけて再戦`);
+      });
+    }else{
+      papers.forEach(p=>{
+        markLoser(p);
+        lines.push(`${p.name}：敗北（裏切りを警戒された）`);
+      });
+      safeOthers.forEach(p=>{
+        p.hand=null;
+        lines.push(`${p.name}：継続`);
+      });
+    }
+
     if(!finishIfPossible(r))r.phase="selecting";
     return {title,lines};
   }
 
-  // ✊と✌️だけなら✌️が読み外しで脱落。脱落者が出たので元リーチ者は勝利。
+  // ✊と✌️：元リーチ者は勝利、✌️は読み外し。
   if(hasR&&hasS&&!hasP){
     title="✌️の警戒外れ → 元リーチ者が勝利！";
     reachers.forEach(p=>{
-      p.reach=false;p.active=false;p.winner=true;p.hand=null;
+      markWinner(p);
       lines.push(`${p.name}：勝利確定`);
     });
-    others.forEach(p=>{
-      if(p.hand==="scissors"){
-        p.active=false;p.reach=false;p.hand=null;
-        lines.push(`${p.name}：敗北（裏切り警戒が外れた）`);
-      }else{
+
+    const slotsAfter=remainingWinSlots(r);
+    if(rocks.length<slotsAfter){
+      rocks.forEach(p=>{
         p.hand=null;
         lines.push(`${p.name}：継続`);
-      }
-    });
+      });
+      scissors.forEach(p=>{
+        keepPlaying(p);
+        lines.push(`${p.name}：残り勝利枠をかけて再戦`);
+      });
+    }else{
+      scissors.forEach(p=>{
+        markLoser(p);
+        lines.push(`${p.name}：敗北（裏切り警戒が外れた）`);
+      });
+      rocks.forEach(p=>{
+        p.hand=null;
+        lines.push(`${p.name}：継続`);
+      });
+    }
+
     if(!finishIfPossible(r))r.phase="selecting";
     return {title,lines};
   }
 
-  // 新しい✋が出て✌️がいない場合、元リーチ者は勝利。
-  // 新しく✋を出した人が次のリーチ。
+  // 新しい✋が出た場合、元リーチ者は勝利。
   if(hasP){
     title="新しい✋が出現 → 元リーチ者が勝利！";
     reachers.forEach(p=>{
-      p.reach=false;p.active=false;p.winner=true;p.hand=null;
+      markWinner(p);
       lines.push(`${p.name}：勝利確定`);
     });
-    others.forEach(p=>{
-      if(p.hand==="paper"){
-        p.reach=true;p.hand=null;
-        lines.push(`${p.name}：新しいリーチ`);
-      }else{
-        p.hand=null;
-        lines.push(`${p.name}：継続`);
-      }
+
+    const slotsAfter=remainingWinSlots(r);
+
+    // 新しい✋の人数が残り枠より多いならリーチ化せず、他の手を脱落させて✋で再戦。
+    if(papers.length>slotsAfter && hasR){
+      rocks.forEach(p=>{
+        markLoser(p);
+        lines.push(`${p.name}：敗北`);
+      });
+      papers.forEach(p=>{
+        keepPlaying(p);
+        lines.push(`${p.name}：リーチなしで再戦`);
+      });
+      if(!finishIfPossible(r))r.phase="selecting";
+      return {title,lines};
+    }
+
+    papers.forEach(p=>{
+      p.reach=true;p.hand=null;
+      lines.push(`${p.name}：新しいリーチ`);
     });
+    others.filter(p=>p.hand!=="paper").forEach(p=>{
+      p.hand=null;
+      lines.push(`${p.name}：継続`);
+    });
+
     if(!finishIfPossible(r))r.phase="reach";
     return {title,lines};
   }
 
-  // ここまで来るのは実質✊のみなど。決着なしならリーチ維持。
   title="決着なし → リーチ継続";
   reachers.forEach(p=>{
     p.hand=null;
@@ -313,7 +465,7 @@ function resolveReach(r){
 io.on("connection",s=>{
   s.on("createRoom",({name,winTarget=1},cb)=>{
     const c=makeCode();
-    const r={code:c,hostId:s.id,round:1,phase:"selecting",overlay:null,winTarget:Math.max(1,+winTarget||1),history:[],players:new Map()};
+    const r={code:c,hostId:s.id,round:1,phase:"selecting",overlay:null,winTarget:Math.max(1,+winTarget||1),history:[],currentResult:null,roundResults:[],players:new Map()};
     r.players.set(s.id,{
       id:s.id,name:(name||"ホスト").trim()||"ホスト",
       active:true,reach:false,winner:false,hand:null,color:nextPlayerColor(r),
@@ -408,15 +560,55 @@ io.on("connection",s=>{
 
     const resolvingPhase=r.phase;
     const out=resolvingPhase==="reach"?resolveReach(r):resolveMain(r);
-    r.history.unshift({round:r.round,stage:resolvingPhase,title:out.title,lines:out.lines});
+    const resultEntry={round:r.round,stage:resolvingPhase,title:out.title,lines:out.lines};
+    r.currentResult=resultEntry;
+    r.history.unshift(resultEntry);
     send(r);
   });
 
   s.on("next",()=>{
     const r=roomOf(s);
-    if(!r||r.hostId!==s.id||r.phase==="finished")return;
+    if(!r||r.hostId!==s.id)return;
+
+    if(r.phase==="finished"){
+      // 終了したラウンドの最終結果を保存してから、全員参加で次ラウンドへ。
+      const winners=[...r.players.values()]
+        .filter(p=>p.winner)
+        .map(p=>({name:p.name,color:p.color}));
+      const losers=[...r.players.values()]
+        .filter(p=>!p.winner)
+        .map(p=>({name:p.name,color:p.color}));
+
+      // 二重保存防止
+      if(!(r.roundResults||[]).some(x=>x.round===r.round)){
+        r.roundResults.unshift({
+          round:r.round,
+          winners,
+          losers,
+          result:r.currentResult
+            ? {title:r.currentResult.title,lines:[...r.currentResult.lines]}
+            : null
+        });
+      }
+
+      r.round++;
+      r.phase="selecting";
+      r.overlay=null;
+      r.currentResult=null;
+      r.players.forEach(p=>{
+        p.active=true;
+        p.reach=false;
+        p.winner=false;
+        p.hand=null;
+      });
+      send(r);
+      return;
+    }
+
+    // ゲーム途中の「次へ」は従来どおり次の判定へ。
     r.round++;
     r.phase=[...r.players.values()].some(p=>p.reach&&p.active&&!p.winner)?"reach":"selecting";
+    r.currentResult=null;
     r.players.forEach(p=>{if(p.active&&!p.winner)p.hand=null});
     send(r);
   });
@@ -424,7 +616,7 @@ io.on("connection",s=>{
   s.on("reset",()=>{
     const r=roomOf(s);
     if(!r||r.hostId!==s.id)return;
-    r.round=1;r.phase="selecting";r.history=[];r.overlay=null;
+    r.round=1;r.phase="selecting";r.history=[];r.currentResult=null;r.roundResults=[];r.overlay=null;
     r.players.forEach(p=>{p.active=true;p.reach=false;p.winner=false;p.hand=null});
     send(r);
   });
