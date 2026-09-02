@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>信頼ジャンケン ONLINE</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+*{box-sizing:border-box}
+:root{--bg:#080a0f;--panel:#141821;--line:#2b3240;--sub:#aab2c0}
+body{margin:0;background:var(--bg);color:#fff;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
+.page{max-width:1600px;margin:auto;padding:18px}
+.hidden{display:none!important}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;margin:12px 0}
+.entry-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.game-grid{display:grid;grid-template-columns:330px minmax(0,1fr);gap:16px;align-items:start}
+.players{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.card{background:#0d1017;border:3px solid var(--pcolor,#303746);border-radius:18px;padding:18px;min-height:150px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 0 24px color-mix(in srgb,var(--pcolor,#303746) 18%,transparent)}
+.card-name{font-size:clamp(20px,1.6vw,28px);font-weight:1000;line-height:1.25;color:var(--pcolor,#fff)}
+.card-status{margin-top:10px}
+.status-badge{display:inline-flex;align-items:center;justify-content:center;min-width:100px;padding:7px 13px;border-radius:999px;font-size:16px;font-weight:1000;letter-spacing:.04em;border:1px solid transparent}
+.status-playing{color:#dbe4f0;background:#202633;border-color:#3b4558}
+.status-reach{color:#ffd84d;background:rgba(255,216,77,.10);border-color:#ffd84d;box-shadow:0 0 16px rgba(255,216,77,.14)}
+.status-win{color:#ffd84d;background:rgba(255,216,77,.16);border-color:#ffd84d;box-shadow:0 0 20px rgba(255,216,77,.20)}
+.status-lose{color:#ff5d5d;background:rgba(255,70,70,.10);border-color:#ff5d5d}
+.status-offline{color:#c6ccd6;background:rgba(160,170,185,.10);border-color:#7d8796}
+.offline-note{display:block;margin-top:7px;font-size:13px;color:#c6ccd6;font-weight:800}
+.history-summary-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(260px,.85fr);gap:18px;align-items:start}
+.summary-side{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.summary-box{background:#0d1017;border:1px solid #303746;border-radius:14px;padding:14px;min-height:120px}
+.summary-box h3{margin:0 0 10px;font-size:17px}
+.summary-list{display:flex;flex-direction:column;gap:8px}
+.summary-person{display:flex;align-items:center;gap:8px;font-weight:900;padding:7px 9px;border-radius:10px;background:#161b24}
+.summary-dot{width:10px;height:10px;border-radius:50%;background:var(--pcolor,#888);box-shadow:0 0 10px color-mix(in srgb,var(--pcolor,#888) 50%,transparent)}
+.summary-winner{color:#ffd84d;border:1px solid rgba(255,216,77,.22)}
+.summary-loser{color:#ff6666;border:1px solid rgba(255,102,102,.20)}
+.summary-empty{color:var(--sub);font-size:13px}
+@media(max-width:1050px){
+  .history-summary-grid{grid-template-columns:1fr}
+}
+@media(max-width:620px){
+  .summary-side{grid-template-columns:1fr}
+}
+.submit-state{display:block;margin-top:7px;font-size:13px;color:var(--sub);font-weight:700}
+.card.state-reach{border-width:4px}
+.card.state-win{border-width:4px}
+.card.state-lose{border-color:#ff5d5d!important;box-shadow:0 0 24px rgba(255,70,70,.15)}
+.card.state-lose .card-name{color:#ff5d5d!important}
+.card-hand{font-size:64px;line-height:1;margin-top:14px;text-align:center}
+.participant-panel{min-height:540px}
+.participant-panel h2{font-size:30px;margin:0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
+.logo{font-size:30px;font-weight:1000}
+.code{font-size:28px;letter-spacing:5px;font-weight:1000}
+input,select{width:100%;padding:11px;border-radius:10px;border:1px solid #394150;background:#0d1017;color:#fff}
+button{border:0;border-radius:13px;padding:12px 16px;font-weight:900;cursor:pointer;transition:.12s transform,.12s box-shadow,.12s background}
+button:active{transform:scale(.96)}
+.primary{background:#fff;color:#111}
+.accent{background:#ffcc4d;color:#111}
+.dark{background:#303746;color:#fff}
+.red{background:#d9534f;color:#fff}
+.hands{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.hand{font-size:34px;background:#2c3341;color:#fff;min-height:82px;position:relative}
+.hand span{display:block;font-size:11px;margin-top:4px;color:#d8dee9}
+.hand.selected{outline:4px solid #fff;background:#596274;transform:translateY(-3px);box-shadow:0 8px 25px rgba(255,255,255,.16)}
+.hand:disabled{opacity:.35;cursor:not-allowed}
+.my-choice{margin:12px 0 14px;padding:15px;border:1px solid #394150;border-radius:14px;background:#0d1017;text-align:center}
+.my-choice .big{font-size:54px;line-height:1.1}
+.my-choice .label{font-size:14px;color:var(--sub);margin-top:5px}
+.muted{color:var(--sub);font-size:13px}
+.result{line-height:1.8}
+.reach{font-weight:900}
+.win{font-weight:900}
+.out{opacity:.45}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.color-edit{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--sub)}
+.color-edit input[type="color"]{width:42px;height:34px;padding:2px;border-radius:9px;cursor:pointer;background:#0d1017}
+
+/* 構えて */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:100;display:flex;align-items:center;justify-content:center;text-align:center;pointer-events:none}
+.ov b{font-size:clamp(70px,13vw,200px);line-height:1.05;letter-spacing:.03em;animation:readyPop .35s cubic-bezier(.2,.9,.2,1)}
+@keyframes readyPop{0%{transform:scale(.65);opacity:0}70%{transform:scale(1.08);opacity:1}100%{transform:scale(1)}}
+
+/* 公開時の全画面演出 */
+.reveal-overlay{position:fixed;inset:0;z-index:120;background:rgba(4,5,8,.97);padding:clamp(14px,3vw,42px);display:flex;flex-direction:column;justify-content:center;pointer-events:none}
+.reveal-title{text-align:center;font-size:clamp(25px,4vw,60px);font-weight:1000;margin-bottom:clamp(14px,3vh,34px);letter-spacing:.08em}
+.reveal-grid{width:min(1500px,100%);margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:clamp(10px,1.8vw,24px)}
+.reveal-card{text-align:center;background:#11151d;border:4px solid var(--pcolor,#38404e);border-radius:24px;padding:clamp(12px,2vw,24px);animation:revealPop .36s cubic-bezier(.2,.9,.2,1) both}
+.reveal-name{font-size:clamp(18px,2vw,32px);font-weight:1000;color:var(--pcolor,#fff);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reveal-hand{font-size:clamp(82px,10vw,180px);line-height:1;margin-top:8px}
+@keyframes revealPop{0%{opacity:0;transform:scale(.55) rotate(-5deg)}75%{transform:scale(1.07) rotate(1deg)}100%{opacity:1;transform:scale(1)}}
+
+@media(max-width:900px){
+  .game-grid,.entry-grid{grid-template-columns:1fr}
+  .page{padding:10px}
+  .participant-panel{min-height:auto}
+  .players{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+  .card{min-height:125px;padding:13px}
+  .card-hand{font-size:52px}
+}
+</style>
+</head>
+<body>
+<div id="overlay" class="ov hidden"><b id="ovtext"></b></div>
+<div id="revealOverlay" class="reveal-overlay hidden">
+  <div class="reveal-title">OPEN!</div>
+  <div id="revealGrid" class="reveal-grid"></div>
+</div>
+
+<div id="entry" class="page">
+  <div class="logo">🤝 信頼ジャンケン ONLINE</div>
+  <p class="muted">ホストも参加者としてプレイ。スマホ・PCどちらからでも参加できます。</p>
+  <div class="entry-grid">
+    <div class="panel">
+      <h2>ホスト</h2>
+      <input id="hn" placeholder="ホスト名"><br><br>
+      <label class="muted">勝利枠</label>
+      <input id="wt" type="number" min="1" value="1"><br><br>
+      <button class="primary" onclick="create()">部屋を作る</button>
+    </div>
+    <div class="panel">
+      <h2>参加</h2>
+      <input id="rc" placeholder="6桁コード"><br><br>
+      <input id="jn" placeholder="名前"><br><br>
+      <button class="primary" onclick="join()">参加する</button>
+      <p id="msg" class="muted"></p>
+    </div>
+  </div>
+</div>
+
+<div id="app" class="page hidden">
+  <div class="panel top">
+    <div>
+      <div class="logo">🤝 信頼ジャンケン</div>
+      <div class="muted">ROUND <span id="round">1</span>　生存 <span id="alive">0</span>　勝利枠 <span id="target">1</span></div>
+    </div>
+    <div>
+      <div class="muted">部屋コード</div>
+      <div id="code" class="code"></div>
+    </div>
+  </div>
+
+  <div class="game-grid">
+    <div>
+      <div class="panel">
+        <h2>あなたの手</h2>
+        <div id="myState" class="muted"></div>
+        <div class="my-choice">
+          <div id="myChoiceBig" class="big">❓</div>
+          <div id="myChoiceLabel" class="label">まだ選んでいません</div>
+        </div>
+        <div class="hands">
+          <button id="rockBtn" class="hand" onclick="choose('rock')">✊<span>信頼</span></button>
+          <button id="paperBtn" class="hand" onclick="choose('paper')">✋<span>裏切り</span></button>
+          <button id="scissorsBtn" class="hand" onclick="choose('scissors')">✌️<span>裏切り警戒</span></button>
+        </div>
+      </div>
+
+      <div id="host" class="panel hidden">
+        <h2>ホスト操作</h2>
+        <label class="muted">勝利枠</label>
+        <input id="hostTarget" type="number" min="1" value="1" onchange="setTarget(this.value)"><br><br>
+        <div class="row">
+          <button class="accent" onclick="overlay()">🥁 「構えて！」</button>
+          <button class="primary" onclick="reveal()">公開</button>
+          <button class="dark" onclick="next()">次へ</button>
+          <button class="red" onclick="resetG()">リセット</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>今回の結果</h2>
+        <div id="result" class="result">—</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel participant-panel">
+        <div class="top">
+          <h2>参加者</h2>
+          <span id="phase" class="muted"></span>
+        </div>
+        <div id="players" class="players" style="margin-top:16px"></div>
+      </div>
+
+      <div class="panel">
+        <div class="history-summary-grid">
+          <div>
+            <h2>直近の戦歴</h2>
+            <div id="history" class="result"></div>
+          </div>
+          <div class="summary-side">
+            <div class="summary-box">
+              <h3>🏆 勝者一覧</h3>
+              <div id="winnerList" class="summary-list"></div>
+            </div>
+            <div class="summary-box">
+              <h3>❌ 脱落者一覧</h3>
+              <div id="loserList" class="summary-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const socket=io();
+let me=null,isHost=false,lastOv=0,lastPhase=null,audioCtx=null;
+const SESSION_KEY="shinraiJankenSessionV8";
+let session=null;
+try{session=JSON.parse(localStorage.getItem(SESSION_KEY)||"null")}catch(e){session=null}
+const $=x=>document.getElementById(x);
+const HAND={rock:"✊",paper:"✋",scissors:"✌️"};
+const HANDNAME={rock:"信頼",paper:"裏切り",scissors:"裏切り警戒"};
+
+const readyDrum=new Audio("/drum.mp3");
+readyDrum.preload="auto";
+const revealSound=new Audio("/reveal.mp3");
+revealSound.preload="auto";
+
+function ensureAudio(){
+  // ブラウザの自動再生制限解除用。参加/作成ボタンなどの操作時に一度呼ばれる。
+  try{
+    readyDrum.load();
+    revealSound.load();
+  }catch(e){}
+}
+document.addEventListener("pointerdown",ensureAudio,{once:false});
+
+function playReadyDrum(){
+  try{
+    readyDrum.pause();
+    readyDrum.currentTime=0;
+    const p=readyDrum.play();
+    if(p&&p.catch)p.catch(()=>{});
+  }catch(e){}
+}
+
+function playRevealSound(){
+  try{
+    revealSound.pause();
+    revealSound.currentTime=0;
+    const p=revealSound.play();
+    if(p&&p.catch)p.catch(()=>{});
+  }catch(e){}
+}
+
+
+function enter(c){
+  $("entry").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  $("code").textContent=c;
+  $("host").classList.toggle("hidden",!isHost);
+}
+
+function create(){
+  ensureAudio();
+  const name=$("hn").value.trim()||"ホスト";
+  socket.emit("createRoom",{name,winTarget:+$("wt").value||1},r=>{
+    if(!r.ok)return $("msg").textContent=r.error;
+    me=socket.id;
+    isHost=true;
+    session={code:r.code,name,isHost:true};
+    localStorage.setItem(SESSION_KEY,JSON.stringify(session));
+    enter(r.code);
+  });
+}
+
+function join(){
+  ensureAudio();
+  const code=$("rc").value.trim().toUpperCase();
+  const name=$("jn").value.trim();
+  socket.emit("joinRoom",{code,name},r=>{
+    if(!r.ok)return $("msg").textContent=r.error;
+    me=socket.id;
+    isHost=!!r.isHost;
+    session={code:r.code,name:name||"参加者",isHost};
+    localStorage.setItem(SESSION_KEY,JSON.stringify(session));
+    enter(r.code);
+  });
+}
+
+function choose(h){ensureAudio();socket.emit("choose",h)}
+function reveal(){ensureAudio();socket.emit("reveal")}
+function next(){socket.emit("next")}
+function resetG(){if(confirm("リセットしますか？"))socket.emit("reset")}
+function setTarget(n){socket.emit("setWinTarget",+n)}
+function setPlayerColor(playerId,color){socket.emit("setPlayerColor",{playerId,color})}
+function overlay(){ensureAudio();socket.emit("overlay",{text:"構えて！",duration:2600})}
+
+function tryResume(){
+  if(!session||!session.code||!session.name)return;
+  socket.emit("resumeRoom",session,r=>{
+    if(!r||!r.ok){
+      // 部屋がなくなっていたら古い復帰情報だけ消す
+      if(r&&r.error==="部屋が終了しています"){
+        localStorage.removeItem(SESSION_KEY);
+        session=null;
+      }
+      return;
+    }
+    me=socket.id;
+    isHost=!!r.isHost;
+    session.isHost=isHost;
+    localStorage.setItem(SESSION_KEY,JSON.stringify(session));
+    enter(r.code);
+    $("msg").textContent="再接続しました";
+  });
+}
+
+socket.on("connect",()=>{
+  if(session)tryResume();
+});
+
+
+function renderChoice(hand,disabled=false){
+  ["rock","paper","scissors"].forEach(h=>{
+    const b=$(h+"Btn");
+    b.classList.toggle("selected",hand===h);
+    b.disabled=disabled;
+  });
+  $("myChoiceBig").textContent=hand?HAND[hand]:"❓";
+  $("myChoiceLabel").textContent=hand?`選択中：${HANDNAME[hand]}`:"まだ選んでいません";
+}
+
+socket.on("state",s=>{
+  $("round").textContent=s.round;
+  $("alive").textContent=s.players.filter(p=>p.active&&!p.winner).length;
+  $("target").textContent=s.winTarget;
+  $("code").textContent=s.code;
+  $("phase").textContent={
+    selecting:"手を選択中",
+    reach:"リーチ判定：リーチ以外が再選択",
+    finished:"ゲーム終了"
+  }[s.phase]||s.phase;
+
+  if(isHost)$("hostTarget").value=s.winTarget;
+
+  const mep=s.players.find(p=>p.id===me);
+  const cannotChoose=!mep||!mep.active||mep.winner||(s.phase==="reach"&&mep.reach)||s.phase==="finished";
+  $("myState").textContent=mep?(
+    mep.winner?"🏆 勝利確定":
+    !mep.active?"❌ 脱落":
+    mep.reach?"🔥 リーチ中・このターンは待機":
+    s.yourHand?"✅ 選択済み（何度でも変更できます）":"手を選んでください"
+  ):"";
+  renderChoice(s.yourHand,cannotChoose);
+
+  $("players").innerHTML=s.players.map(p=>{
+    const isMe=p.id===me;
+    const visibleHand=isMe&&s.yourHand ? HAND[s.yourHand] : "🔒";
+    const baseStatus=p.winner?"🏆 勝利":p.reach?"🔥 リーチ":p.active?"ゲーム中":"❌ 敗北";
+    const status=p.connected?baseStatus:"📶 回線切断中";
+    const statusClass=!p.connected?"status-offline":p.winner?"status-win":p.reach?"status-reach":p.active?"status-playing":"status-lose";
+    const cardState=p.winner?"state-win":p.reach?"state-reach":p.active?"state-playing":"state-lose";
+    const submit=!p.connected?`復帰待ち・${baseStatus}`:p.winner||!p.active?"":p.reach&&s.phase==="reach"?"待機中":p.submitted?"✅ 選択済":"⏳ 未選択";
+    const colorEdit=isHost?`<div class="color-edit">参加者カラー <input type="color" value="${p.color||"#8b5cf6"}" onchange="setPlayerColor('${p.id}',this.value)"></div>`:"";
+    return `<div class="card ${cardState}" style="--pcolor:${p.color||"#8b5cf6"}">
+      <div>
+        <div class="card-name">${esc(p.name)} ${p.id===s.hostId?"👑":""}${isMe?" <small style='font-size:13px;color:#aab2c0'>(あなた)</small>":""}</div>
+        <div class="card-status"><span class="status-badge ${statusClass}">${status}</span>${submit?`<span class="submit-state">${submit}</span>`:""}</div>
+        ${colorEdit}
+      </div>
+      <div class="card-hand">${visibleHand}</div>
+    </div>`
+  }).join("");
+
+  if(s.history[0]){
+    $("result").innerHTML="<b>"+esc(s.history[0].title)+"</b><br>"+s.history[0].lines.map(esc).join("<br>");
+  }
+  $("history").innerHTML=s.history.map(h=>`<div style="margin-bottom:12px"><b>ROUND ${h.round}</b> ${esc(h.title)}<br><span class="muted">${h.lines.map(esc).join(" / ")}</span></div>`).join("");
+
+  const winners=s.players.filter(p=>p.winner);
+  const losers=s.players.filter(p=>!p.active&&!p.winner);
+
+  $("winnerList").innerHTML=winners.length
+    ? winners.map(p=>`<div class="summary-person summary-winner" style="--pcolor:${p.color||"#888"}"><span class="summary-dot"></span>${esc(p.name)}</div>`).join("")
+    : `<div class="summary-empty">まだいません</div>`;
+
+  $("loserList").innerHTML=losers.length
+    ? losers.map(p=>`<div class="summary-person summary-loser" style="--pcolor:${p.color||"#888"}"><span class="summary-dot"></span>${esc(p.name)}</div>`).join("")
+    : `<div class="summary-empty">まだいません</div>`;
+
+  if(s.overlay&&s.overlay.at!==lastOv){
+    lastOv=s.overlay.at;
+    $("ovtext").textContent=s.overlay.text;
+    $("overlay").classList.remove("hidden");
+    playReadyDrum();
+    setTimeout(()=>$("overlay").classList.add("hidden"),s.overlay.duration);
+  }
+
+  lastPhase=s.phase;
+});
+
+socket.on("revealBurst",d=>{
+  ensureAudio();
+  playRevealSound();
+  $("revealGrid").innerHTML=d.players.map((p,i)=>`<div class="reveal-card" style="--pcolor:${p.color||"#8b5cf6"};animation-delay:${Math.min(i*45,250)}ms">
+    <div class="reveal-name">${esc(p.name)}</div>
+    <div class="reveal-hand">${HAND[p.hand]||"?"}</div>
+  </div>`).join("");
+  $("revealOverlay").classList.remove("hidden");
+  setTimeout(()=>$("revealOverlay").classList.add("hidden"),d.duration||2400);
+});
+
+socket.on("disconnect",()=>{
+  if(!$("app").classList.contains("hidden")){
+    $("phase").textContent="📶 再接続中…";
+  }
+});
+
+function esc(x){
+  return String(x).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))
+}
+</script>
+</body>
+</html>
