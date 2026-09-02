@@ -50,9 +50,16 @@ function reclaimByName(r,s,name,wantsHost=false){
 }
 
 function finishIfPossible(r){
-  const alive=[...r.players.values()].filter(p=>p.active&&!p.winner);
-  if(alive.length<=r.winTarget && alive.length>0){
-    alive.forEach(p=>{p.active=false;p.reach=false;p.winner=true;p.hand=null});
+  const winners=[...r.players.values()].filter(p=>p.winner);
+  if(winners.length>=r.winTarget){
+    // 勝利枠に達した時点で、まだ勝っていない参加者は全員敗北。
+    [...r.players.values()].forEach(p=>{
+      if(!p.winner && p.active){
+        p.active=false;
+        p.reach=false;
+        p.hand=null;
+      }
+    });
     r.phase="finished";
     return true;
   }
@@ -74,101 +81,162 @@ function resolveMain(r){
   const allSame=hs.length>0&&hs.every(h=>h===hs[0]);
 
   if(allSame){
-    title=`全員${mark[hs[0]]}！ 全員セーフ`;
-    active.forEach(p=>lines.push(`${p.name}：セーフ`));
+    title=`全員${mark[hs[0]]}！ 全員継続`;
+    active.forEach(p=>{p.hand=null;lines.push(`${p.name}：継続`)});
+    r.phase="selecting";
     return {title,lines};
   }
 
-  // 3種類が同時に出た場合：
-  // ✌️は「裏切り警戒」。✋（裏切ろうとした人）だけを脱落させる。
-  // ✌️自身は✊がいても脱落しない。✊もそのまま継続。
-  // 例）✋1人、✊3人、✌️1人 → ✋だけ敗北、✊3人と✌️1人は継続。
-  if(hasR&&hasP&&hasS){
+  // ✋と✌️が同時に出たら、場に✊がいても関係なく✋だけ即脱落。
+  // ✌️は「裏切りを見抜いた」ので生存。
+  if(hasP&&hasS){
     title="✌️が裏切りを阻止！";
     active.forEach(p=>{
       if(p.hand==="paper"){
-        p.active=false;p.reach=false;p.hand=null;lines.push(`${p.name}：敗北（✌️に警戒された）`);
+        p.active=false;p.reach=false;p.hand=null;
+        lines.push(`${p.name}：敗北（裏切りを警戒された）`);
       }else{
-        p.hand=null;lines.push(`${p.name}：継続`);
+        p.hand=null;
+        lines.push(`${p.name}：継続`);
       }
     });
-    if(finishIfPossible(r)) title+=" → 勝利枠確定！";
-    else r.phase="selecting";
+    if(!finishIfPossible(r))r.phase="selecting";
     return {title,lines};
   }
 
-  let loserHand=null,winnerHand=null;
-  if(hasP&&hasR){winnerHand="paper";loserHand="rock"}
-  else if(hasS&&hasP){winnerHand="scissors";loserHand="paper"}
-  else if(hasR&&hasS){winnerHand="rock";loserHand="scissors"}
-
-  title=`${mark[winnerHand]}が${mark[loserHand]}に勝利`;
-  active.forEach(p=>{
-    if(p.hand===loserHand){
-      p.active=false;p.reach=false;p.hand=null;lines.push(`${p.name}：敗北`);
-    }else if(p.hand==="paper"){
-      p.reach=true;p.hand=null;lines.push(`${p.name}：リーチ`);
-    }else{
-      p.hand=null;lines.push(`${p.name}：継続`);
-    }
-  });
-  const hasReach=[...r.players.values()].some(p=>p.reach&&p.active&&!p.winner);
-  // リーチが発生した場合は、残人数が勝利枠以下でも先にリーチ判定を行う。
-  // 例：勝利枠1で最後の1人が✋リーチになっても、その場では勝利確定にしない。
-  if(hasReach){
-    r.phase="reach";
-  }else if(finishIfPossible(r)){
-    title+=" → 勝利枠確定！";
-  }else{
-    r.phase="selecting";
+  // ✌️を出したのに✋が来ず、他に✊がいる場合は✌️が読み外しで脱落。
+  if(hasR&&hasS&&!hasP){
+    title="✌️の警戒外れ！";
+    active.forEach(p=>{
+      if(p.hand==="scissors"){
+        p.active=false;p.reach=false;p.hand=null;
+        lines.push(`${p.name}：敗北（裏切り警戒が外れた）`);
+      }else{
+        p.hand=null;
+        lines.push(`${p.name}：継続`);
+      }
+    });
+    if(!finishIfPossible(r))r.phase="selecting";
+    return {title,lines};
   }
+
+  // ✌️がいない状態で✋が出たら、✋だけリーチ。✊は脱落しない。
+  if(hasP){
+    title="✋がリーチ！";
+    active.forEach(p=>{
+      if(p.hand==="paper"){
+        p.reach=true;p.hand=null;
+        lines.push(`${p.name}：リーチ`);
+      }else{
+        p.hand=null;
+        lines.push(`${p.name}：継続`);
+      }
+    });
+    r.phase="reach";
+    return {title,lines};
+  }
+
+  title="全員継続";
+  active.forEach(p=>{p.hand=null;lines.push(`${p.name}：継続`)});
+  r.phase="selecting";
   return {title,lines};
 }
 
 function resolveReach(r){
   const reachers=[...r.players.values()].filter(p=>p.reach&&p.active&&!p.winner);
   const others=[...r.players.values()].filter(p=>p.active&&!p.winner&&!p.reach);
-  const hs=others.map(p=>p.hand),hasP=hs.includes("paper"),hasS=hs.includes("scissors");
+  const hs=others.map(p=>p.hand);
+  const hasR=hs.includes("rock"),hasP=hs.includes("paper"),hasS=hs.includes("scissors");
   let title="",lines=[];
-  const allSame=hs.length>0 && hs.every(h=>h===hs[0]);
+  const allSame=hs.length>0&&hs.every(h=>h===hs[0]);
 
+  // リーチ以外が全員同じ手なら元リーチ解除。
   if(allSame){
     title="全員同じ手 → リーチ解除！";
-    reachers.forEach(p=>{p.reach=false;lines.push(`${p.name}：引き戻し`)});
-    others.forEach(p=>lines.push(`${p.name}：継続`));
+    reachers.forEach(p=>{
+      p.reach=false;p.hand=null;
+      lines.push(`${p.name}：引き戻し`);
+    });
+    others.forEach(p=>{
+      p.hand=null;
+      lines.push(`${p.name}：継続`);
+    });
     r.phase="selecting";
-    [...r.players.values()].forEach(p=>{if(p.active&&!p.winner)p.hand=null});
-  }else{
-    if(hasP){
-      title="新しい✋が出現 → 元リーチ者が勝利確定";
-      reachers.forEach(p=>{
-        p.reach=false;p.active=false;p.winner=true;p.hand=null;
-        lines.push(`${p.name}：勝利確定`)
-      });
-      others.forEach(p=>{
-        if(p.hand==="paper"){p.reach=true;p.hand=null;lines.push(`${p.name}：新しいリーチ`)}
-        else if(p.hand==="scissors"){p.active=false;p.hand=null;lines.push(`${p.name}：脱落`)}
-        else {p.hand=null;lines.push(`${p.name}：継続`)}
-      });
-    }else if(hasS){
-      title="✌️で脱落者発生 → 元リーチ者が勝利確定";
-      reachers.forEach(p=>{
-        p.reach=false;p.active=false;p.winner=true;p.hand=null;
-        lines.push(`${p.name}：勝利確定`)
-      });
-      others.forEach(p=>{
-        if(p.hand==="scissors"){p.active=false;p.hand=null;lines.push(`${p.name}：脱落`)}
-        else {p.hand=null;lines.push(`${p.name}：継続`)}
-      });
-    }else{
-      title="判定継続";
-      others.forEach(p=>p.hand=null);
-    }
-    if(!finishIfPossible(r)){
-      const newReach=[...r.players.values()].some(p=>p.reach&&p.active&&!p.winner);
-      r.phase=newReach?"reach":"selecting";
-    }
+    return {title,lines};
   }
+
+  // ✋と✌️が同時に出たら✋だけ即脱落。脱落者が出たので元リーチ者は勝利。
+  if(hasP&&hasS){
+    title="✌️が裏切りを阻止 → 元リーチ者が勝利！";
+    reachers.forEach(p=>{
+      p.reach=false;p.active=false;p.winner=true;p.hand=null;
+      lines.push(`${p.name}：勝利確定`);
+    });
+    others.forEach(p=>{
+      if(p.hand==="paper"){
+        p.active=false;p.reach=false;p.hand=null;
+        lines.push(`${p.name}：敗北（裏切りを警戒された）`);
+      }else{
+        p.hand=null;
+        lines.push(`${p.name}：継続`);
+      }
+    });
+    if(!finishIfPossible(r))r.phase="selecting";
+    return {title,lines};
+  }
+
+  // ✊と✌️だけなら✌️が読み外しで脱落。脱落者が出たので元リーチ者は勝利。
+  if(hasR&&hasS&&!hasP){
+    title="✌️の警戒外れ → 元リーチ者が勝利！";
+    reachers.forEach(p=>{
+      p.reach=false;p.active=false;p.winner=true;p.hand=null;
+      lines.push(`${p.name}：勝利確定`);
+    });
+    others.forEach(p=>{
+      if(p.hand==="scissors"){
+        p.active=false;p.reach=false;p.hand=null;
+        lines.push(`${p.name}：敗北（裏切り警戒が外れた）`);
+      }else{
+        p.hand=null;
+        lines.push(`${p.name}：継続`);
+      }
+    });
+    if(!finishIfPossible(r))r.phase="selecting";
+    return {title,lines};
+  }
+
+  // 新しい✋が出て✌️がいない場合、元リーチ者は勝利。
+  // 新しく✋を出した人が次のリーチ。
+  if(hasP){
+    title="新しい✋が出現 → 元リーチ者が勝利！";
+    reachers.forEach(p=>{
+      p.reach=false;p.active=false;p.winner=true;p.hand=null;
+      lines.push(`${p.name}：勝利確定`);
+    });
+    others.forEach(p=>{
+      if(p.hand==="paper"){
+        p.reach=true;p.hand=null;
+        lines.push(`${p.name}：新しいリーチ`);
+      }else{
+        p.hand=null;
+        lines.push(`${p.name}：継続`);
+      }
+    });
+    if(!finishIfPossible(r))r.phase="reach";
+    return {title,lines};
+  }
+
+  // ここまで来るのは実質✊のみなど。決着なしならリーチ維持。
+  title="決着なし → リーチ継続";
+  reachers.forEach(p=>{
+    p.hand=null;
+    lines.push(`${p.name}：リーチ継続`);
+  });
+  others.forEach(p=>{
+    p.hand=null;
+    lines.push(`${p.name}：再選択`);
+  });
+  r.phase="reach";
   return {title,lines};
 }
 

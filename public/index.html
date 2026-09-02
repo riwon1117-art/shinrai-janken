@@ -171,6 +171,37 @@ html,body,body *,button,input,select,textarea,
   font-synthesis:none;
 }
 
+
+/* v21: 全画面フォントを ZeroGothic に統一 */
+@font-face{
+  font-family:'ZeroGothic';
+  src:url('/ZeroGothic.otf') format('opentype');
+  font-display:swap;
+}
+html,body,body *,button,input,select,textarea,
+.rules-body,.rules-body h3,.rules-body p,.rules-body .rule-note{
+  font-family:'ZeroGothic',system-ui,-apple-system,'Noto Sans JP',sans-serif !important;
+  font-synthesis:none;
+}
+
+
+/* v22: スマホでは「あなたの手」の直下に参加者を表示 */
+@media(max-width:620px){
+  .game-grid{
+    display:flex !important;
+    flex-direction:column !important;
+    gap:14px !important;
+  }
+  .game-grid > div{
+    display:contents !important;
+  }
+  .game-grid > div:first-child > .panel:nth-child(1){order:1} /* あなたの手 */
+  .game-grid > div:nth-child(2) > .participant-panel{order:2} /* 参加者 */
+  .game-grid > div:first-child > #host{order:3} /* ホスト操作 */
+  .game-grid > div:first-child > .panel:nth-child(3){order:4} /* 今回の結果 */
+  .game-grid > div:nth-child(2) > .panel:not(.participant-panel){order:5} /* 戦歴 */
+}
+
 </style>
 </head>
 <body>
@@ -190,15 +221,26 @@ html,body,body *,button,input,select,textarea,
         </button>
         <div id="rulesBody" class="rules-body">
           <h3>基本</h3>
-          <p>全員で ✊・✋・✌️ のどれかを選び、ホストが公開すると判定されます。同じ手だけなら全員セーフです。</p>
-          <h3>手の関係</h3>
-          <p>✋は✊を裏切ります。✌️は裏切り警戒で、✋を出した人を脱落させます。✊と✌️が一緒に出ても、✌️は脱落しません。</p>
+          <p>✊＝信頼、✋＝裏切り、✌️＝裏切り警戒。普通のじゃんけんのように、勝った手が相手を倒すゲームではありません。</p>
+
+          <h3>通常判定</h3>
+          <p>✋が出ていて✌️がいない場合、✋を出した人だけがリーチになります。✊を出した人は脱落せず、そのまま続行します。</p>
+          <p>✋と✌️が同時に出た場合、✌️が裏切りを止めた扱いになり、✋を出した人だけが一発脱落します。場に✊が何人いても関係なく、この場合の✌️は脱落しません。</p>
+          <p>✊と✌️だけの場合は、✌️が「裏切りが来る」と読んだのに✋が来なかった扱いになり、✌️を出した人が脱落します。✊は続行です。全員が同じ手の場合はそのまま続行です。</p>
+
           <h3>例</h3>
-          <p>5人で「1=✋、2・3・4=✊、5=✌️」なら、✌️の5が裏切りを警戒したため、✋の1だけが脱落します。2・3・4と5はそのまま継続します。</p>
-          <h3>リーチ</h3>
-          <p>✋が生き残って✊に勝った場合はリーチになります。リーチ本人を除いて再勝負し、残り全員が同じ手ならリーチ解除。新しい✋や脱落者が発生すると元リーチ者は勝利確定です。</p>
-          <h3>勝利</h3>
-          <p>残っている人数が設定した勝利枠以下になったら、そのプレイヤー全員が勝者です。</p>
+          <p>「1=✋、2・3・4=✊」なら、1だけリーチ。2・3・4は続行し、次のリーチ判定の結果で1が勝ち抜けできるかが決まります。</p>
+          <p>「1=✋、2・3・4=✊、5=✌️」なら、✌️の5が裏切りを止めるため、✋の1だけが脱落。2・3・4・5は続行です。</p>
+
+          <h3>リーチ判定</h3>
+          <p>リーチ中の人は一度休み、リーチ以外の人だけでもう一度選びます。</p>
+          <p>リーチ以外が全員同じ手なら、元リーチは解除されゲームに戻ります。</p>
+          <p>新しい✋が出て✌️がいなければ、元リーチ者は勝利確定。新しく✋を出した人が次のリーチになります。</p>
+          <p>✋と✌️が同時に出た場合、✋は一発脱落し、元リーチ者は勝利確定です。</p>
+          <p>リーチ判定中に✊と✌️だけが出た場合、✌️は読み外しで脱落し、元リーチ者は勝利確定です。</p>
+
+          <h3>勝利枠</h3>
+          <p>勝利者の人数が設定した「勝利枠」に達した時点でゲーム終了。まだ勝利していない参加者は敗北になります。</p>
         </div>
       </div>
 <div id="revealOverlay" class="reveal-overlay hidden">
