@@ -14,7 +14,7 @@
 
 *{box-sizing:border-box}
 :root{--bg:#080a0f;--panel:#141821;--line:#2b3240;--sub:#aab2c0}
-body{margin:0;background:var(--bg);color:#fff;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
+body{margin:0;background:var(--bg);color:#fff;font-family:'GameFont',system-ui,-apple-system,'Noto Sans JP',sans-serif}
 .page{max-width:1600px;margin:auto;padding:18px}
 .hidden{display:none!important}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;margin:12px 0}
@@ -114,10 +114,38 @@ button:active{transform:scale(.96)}
   .card{min-height:125px;padding:13px}
   .card-hand{font-size:52px}
 }
+
+button,input,select,textarea{font-family:'GameFont',system-ui,-apple-system,'Noto Sans JP',sans-serif}
 </style>
 </head>
 <body>
 <div id="overlay" class="ov hidden"><b id="ovtext"></b></div>
+
+      <div class="panel bgm-panel">
+        <strong>🎵 BGM</strong>
+        <button id="bgmToggle" class="secondary" onclick="toggleBgm()">OFF</button>
+        <span>音量</span>
+        <input id="bgmVolume" type="range" min="0" max="100" value="35" oninput="setBgmVolume(this.value)">
+        <span id="bgmVolumeLabel" class="vol-label">35%</span>
+      </div>
+
+      <div class="panel rules-wrap">
+        <button class="rules-toggle" type="button" onclick="toggleRules()">
+          <span>📖 ルール説明</span><span id="rulesArrow">▼</span>
+        </button>
+        <div id="rulesBody" class="rules-body">
+          <h3>基本</h3>
+          <p>全員で ✊・✋・✌️ のどれかを選び、ホストが公開すると判定されます。同じ手だけなら全員セーフです。</p>
+          <h3>手の関係</h3>
+          <p>✋は✊に勝つ / ✌️は✋に勝つ / ✊は✌️に勝ちます。3種類が同時に出た場合も、それぞれの相性で個別に判定します。</p>
+          <h3>例</h3>
+          <p>5人で「1=✋、2・3・4=✊、5=✌️」なら、1は✌️に負け、5は✊に負けます。2・3・4は何も起きず継続します。</p>
+          <h3>リーチ</h3>
+          <p>✋が生き残って✊に勝った場合はリーチになります。リーチ本人を除いて再勝負し、残り全員が同じ手ならリーチ解除。新しい✋や脱落者が発生すると元リーチ者は勝利確定です。</p>
+          <h3>勝利</h3>
+          <p>残っている人数が設定した勝利枠以下になったら、そのプレイヤー全員が勝者です。</p>
+        </div>
+      </div>
 <div id="revealOverlay" class="reveal-overlay hidden">
   <div class="reveal-title">OPEN!</div>
   <div id="revealGrid" class="reveal-grid"></div>
@@ -228,7 +256,9 @@ const SESSION_KEY="shinraiJankenSessionV8";
 let session=null;
 try{session=JSON.parse(localStorage.getItem(SESSION_KEY)||"null")}catch(e){session=null}
 const $=x=>document.getElementById(x);
-const bgmAudio = $("bgmAudio");
+const bgmAudio = new Audio("/bgm.mp3");
+bgmAudio.loop=true;
+bgmAudio.preload="auto";
 let bgmWanted = localStorage.getItem("shinraiBgmOn")==="1";
 let bgmVol = Number(localStorage.getItem("shinraiBgmVol") ?? 35);
 if(!Number.isFinite(bgmVol)) bgmVol=35;
@@ -275,6 +305,7 @@ function ensureAudio(){
   try{
     readyDrum.load();
     revealSound.load();
+    try{bgmAudio.load()}catch(e){}
   }catch(e){}
 }
 document.addEventListener("pointerdown",ensureAudio,{once:false});
@@ -466,6 +497,5 @@ function esc(x){
   return String(x).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))
 }
 </script>
-  <audio id="bgmAudio" src="/bgm.mp3" loop preload="auto"></audio>
 </body>
 </html>
