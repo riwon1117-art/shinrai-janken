@@ -566,6 +566,28 @@ io.on("connection",s=>{
     send(r);
   });
 
+  s.on("kickPlayer",playerId=>{
+    const r=roomOf(s);
+    if(!r||r.hostId!==s.id)return;
+    if(playerId===r.hostId)return;
+
+    const p=r.players.get(playerId);
+    if(!p)return;
+
+    const sock=io.sockets.sockets.get(playerId);
+    if(sock){
+      sock.emit("kicked",{message:"ホストによって参加枠から退出されました"});
+      sock.leave(r.code);
+    }
+
+    r.players.delete(playerId);
+    send(r);
+
+    if(sock){
+      setTimeout(()=>{try{sock.disconnect(true)}catch(e){}},120);
+    }
+  });
+
   s.on("choose",h=>{
     const r=roomOf(s),p=r&&r.players.get(s.id);
     if(!r||!p||!p.active||p.winner||r.phase==="finished"||r.phase==="revealed")return;

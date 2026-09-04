@@ -221,13 +221,69 @@ html,body,body *,button,input,select,textarea,
 
 .back-entry-btn{margin-top:10px;width:100%;white-space:nowrap}
 @media(max-width:620px){.back-entry-btn{width:100%}}
+
+/* v30: BGM / 効果音コントロール整列 */
+.bgm-panel{
+  display:grid !important;
+  grid-template-columns:auto auto minmax(140px,260px) 64px auto auto minmax(140px,260px) 64px;
+  align-items:center !important;
+  column-gap:10px !important;
+  row-gap:10px !important;
+}
+.bgm-panel button{min-width:110px;height:46px}
+.bgm-panel input[type=range],
+.sfx-panel input[type=range]{width:100% !important;margin:0}
+.bgm-panel .vol-label,
+.sfx-panel .vol-label{min-width:64px;text-align:right}
+.sfx-panel{display:contents !important}
+
+.kick-btn{
+  margin-top:10px;
+  width:100%;
+  padding:9px 10px;
+  background:#7f1d1d;
+  color:#fff;
+  border:1px solid #ef4444;
+}
+.kick-btn:hover{filter:brightness(1.12)}
+
+@media(max-width:760px){
+  .bgm-panel{
+    grid-template-columns:auto minmax(0,1fr) 58px !important;
+    width:100% !important;
+  }
+  .bgm-panel > strong,
+  .bgm-panel > button,
+  .bgm-panel > span,
+  .bgm-panel > input,
+  .sfx-panel > strong,
+  .sfx-panel > span,
+  .sfx-panel > input{
+    min-width:0 !important;
+  }
+  .bgm-panel button{
+    width:100% !important;
+    min-width:0 !important;
+  }
+  .bgm-panel .bgm-title{grid-column:1}
+  .bgm-panel #bgmToggle{grid-column:2 / 4}
+  .bgm-panel .bgm-volume-text{grid-column:1}
+  .bgm-panel #bgmVolume{grid-column:2}
+  .bgm-panel #bgmVolumeLabel{grid-column:3}
+  .sfx-panel{display:contents !important}
+  .sfx-panel strong{grid-column:1}
+  .sfx-panel > span:not(.vol-label){display:none}
+  .sfx-panel #sfxVolume{grid-column:2}
+  .sfx-panel #sfxVolumeLabel{grid-column:3}
+}
+
 </style>
 </head>
 <body>
 <div id="overlay" class="ov hidden"><b id="ovtext"></b></div>
 
       <div class="panel bgm-panel">
-        <strong>🎵 BGM</strong>
+        <strong class="bgm-title">🎵 BGM</strong>
         <button id="bgmToggle" class="secondary" onclick="toggleBgm()">OFF</button>
         <span>音量</span>
         <input id="bgmVolume" type="range" min="0" max="100" value="35" oninput="setBgmVolume(this.value)">
@@ -385,15 +441,39 @@ const bgmAudio = new Audio("/bgm.mp3");
 bgmAudio.loop=true;
 bgmAudio.preload="auto";
 
+const reachBgmAudio = new Audio("/reach-bgm.mp3");
+reachBgmAudio.loop=true;
+reachBgmAudio.preload="auto";
+
+let bgmMode="normal";
+function activeBgm(){return bgmMode==="reach"?reachBgmAudio:bgmAudio}
+
 let bgmWanted = localStorage.getItem("shinraiBgmOn");
 bgmWanted = bgmWanted===null ? true : bgmWanted==="1"; // 初回はON
 let bgmVol = Number(localStorage.getItem("shinraiBgmVol") ?? 35);
 if(!Number.isFinite(bgmVol)) bgmVol=35;
 bgmVol=Math.max(0,Math.min(100,bgmVol));
 bgmAudio.volume=bgmVol/100;
+reachBgmAudio.volume=bgmVol/100;
 
 const bgmPauseReasons=new Set();
 const bgmPauseTimers={};
+
+function switchBgmMode(mode){
+  const nextMode=mode==="reach"?"reach":"normal";
+  if(nextMode===bgmMode)return;
+
+  const oldAudio=activeBgm();
+  oldAudio.pause();
+
+  bgmMode=nextMode;
+  const nextAudio=activeBgm();
+  try{nextAudio.currentTime=0}catch(e){}
+  if(bgmWanted && bgmPauseReasons.size===0){
+    const p=nextAudio.play();
+    if(p&&p.catch)p.catch(()=>{});
+  }
+}
 
 function refreshBgmUi(){
   const t=$("bgmToggle"),s=$("bgmVolume"),l=$("bgmVolumeLabel");
@@ -408,7 +488,7 @@ function refreshBgmUi(){
 
 async function playBgmIfAllowed(){
   if(!bgmWanted || bgmPauseReasons.size>0)return;
-  try{await bgmAudio.play()}catch(e){}
+  try{await activeBgm().play()}catch(e){}
 }
 
 function startBgm(){
@@ -422,6 +502,7 @@ function stopBgm(){
   bgmWanted=false;
   localStorage.setItem("shinraiBgmOn","0");
   bgmAudio.pause();
+  reachBgmAudio.pause();
   refreshBgmUi();
 }
 
@@ -432,15 +513,17 @@ function toggleBgm(){
 function setBgmVolume(v){
   bgmVol=Math.max(0,Math.min(100,Number(v)||0));
   bgmAudio.volume=bgmVol/100;
+  reachBgmAudio.volume=bgmVol/100;
   localStorage.setItem("shinraiBgmVol",String(bgmVol));
   refreshBgmUi();
   // 音量変更では再読み込み・停止をしない
-  if(bgmWanted && bgmPauseReasons.size===0 && bgmAudio.paused)playBgmIfAllowed();
+  if(bgmWanted && bgmPauseReasons.size===0 && activeBgm().paused)playBgmIfAllowed();
 }
 
 function pauseBgmFor(reason,duration){
   bgmPauseReasons.add(reason);
   bgmAudio.pause();
+  reachBgmAudio.pause();
   if(bgmPauseTimers[reason])clearTimeout(bgmPauseTimers[reason]);
   bgmPauseTimers[reason]=setTimeout(()=>{
     bgmPauseReasons.delete(reason);
@@ -454,7 +537,7 @@ refreshBgmUi();
 // 自動再生制限対策：BGMがONなら、最初のユーザー操作で開始。
 // 以後、他のボタンを押してもBGM自体をloadし直さない。
 document.addEventListener("pointerdown",()=>{
-  if(bgmWanted && bgmPauseReasons.size===0 && bgmAudio.paused)playBgmIfAllowed();
+  if(bgmWanted && bgmPauseReasons.size===0 && activeBgm().paused)playBgmIfAllowed();
 },{passive:true});
 
 const HAND={rock:"✊",paper:"✋",scissors:"✌️"};
@@ -559,6 +642,11 @@ function backToEntry(){
 function resetG(){if(confirm("リセットしますか？"))socket.emit("reset")}
 function setTarget(n){socket.emit("setWinTarget",+n)}
 function setPlayerColor(playerId,color){socket.emit("setPlayerColor",{playerId,color})}
+function kickPlayer(playerId,name){
+  if(confirm(`${name} を参加者から切断しますか？`)){
+    socket.emit("kickPlayer",playerId);
+  }
+}
 function overlay(){ensureAudio();socket.emit("overlay",{text:"構えて！",duration:2600})}
 function toggleRules(){const b=$("rulesBody"),a=$("rulesArrow");const o=b.classList.toggle("open");a.textContent=o?"▲":"▼"}
 
@@ -598,6 +686,7 @@ function renderChoice(hand,disabled=false){
 }
 
 socket.on("state",s=>{
+  switchBgmMode(s.phase==="reach" ? "reach" : "normal");
   $("round").textContent=s.round;
   $("alive").textContent=s.players.filter(p=>p.active&&!p.winner).length;
   $("target").textContent=s.winTarget;
@@ -629,11 +718,15 @@ socket.on("state",s=>{
     const cardState=p.winner?"state-win":p.reach?"state-reach":p.active?"state-playing":"state-lose";
     const submit=!p.connected?`復帰待ち・${baseStatus}`:p.winner||!p.active?"":p.reach&&s.phase==="reach"?"待機中":p.submitted?"✅ 選択済":"⏳ 未選択";
     const colorEdit=isHost?`<div class="color-edit">参加者カラー <input type="color" value="${p.color||"#8b5cf6"}" onchange="setPlayerColor('${p.id}',this.value)"></div>`:"";
+    const kickBtn=isHost && p.id!==s.hostId
+      ? `<button class="kick-btn" onclick="kickPlayer('${p.id}','${esc(p.name).replace(/'/g,"&#039;")}')">参加者を切断</button>`
+      : "";
     return `<div class="card ${cardState}" style="--pcolor:${p.color||"#8b5cf6"}">
       <div>
         <div class="card-name">${esc(p.name)} ${p.id===s.hostId?"👑":""}${isMe?" <small style='font-size:13px;color:#aab2c0'>(あなた)</small>":""}</div>
         <div class="card-status"><span class="status-badge ${statusClass}">${status}</span>${submit?`<span class="submit-state">${submit}</span>`:""}</div>
         ${colorEdit}
+        ${kickBtn}
       </div>
       <div class="card-hand">${visibleHand}</div>
     </div>`
@@ -713,6 +806,13 @@ socket.on("revealBurst",d=>{
   </div>`).join("");
   $("revealOverlay").classList.remove("hidden");
   setTimeout(()=>$("revealOverlay").classList.add("hidden"),d.duration||2400);
+});
+
+socket.on("kicked",d=>{
+  localStorage.removeItem(SESSION_KEY);
+  session=null;
+  alert((d&&d.message)||"ホストによって参加枠から退出されました");
+  location.reload();
 });
 
 socket.on("disconnect",()=>{
