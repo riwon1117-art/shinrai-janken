@@ -19,7 +19,8 @@ function publicState(r,viewerId){
     })),
     history:r.history.slice(0,20),
     currentResult:r.currentResult||null,
-    roundResults:(r.roundResults||[]).slice(0,20)
+    roundResults:(r.roundResults||[]).slice(0,20),
+    chat:(r.chat||[]).slice(-100)
   };
 }
 
@@ -486,7 +487,7 @@ function resolveReach(r){
 io.on("connection",s=>{
   s.on("createRoom",({name,winTarget=1},cb)=>{
     const c=makeCode();
-    const r={code:c,hostId:s.id,round:1,phase:"selecting",overlay:null,winTarget:Math.max(1,+winTarget||1),history:[],currentResult:null,roundResults:[],players:new Map()};
+    const r={code:c,hostId:s.id,round:1,phase:"selecting",overlay:null,winTarget:Math.max(1,+winTarget||1),history:[],currentResult:null,roundResults:[],chat:[],players:new Map()};
     r.players.set(s.id,{
       id:s.id,name:(name||"ホスト").trim()||"ホスト",
       active:true,reach:false,winner:false,hand:null,color:nextPlayerColor(r),
@@ -563,6 +564,22 @@ io.on("connection",s=>{
     const p=r.players.get(playerId);
     if(!p)return;
     p.color=color.toLowerCase();
+    send(r);
+  });
+
+  s.on("chatMessage",text=>{
+    const r=roomOf(s),p=r&&r.players.get(s.id);
+    if(!r||!p||!p.connected)return;
+    const msg=String(text||"").trim().slice(0,200);
+    if(!msg)return;
+    r.chat.push({
+      id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+      name:p.name,
+      color:p.color,
+      text:msg,
+      at:Date.now()
+    });
+    if(r.chat.length>100)r.chat=r.chat.slice(-100);
     send(r);
   });
 

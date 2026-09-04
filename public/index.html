@@ -222,26 +222,150 @@ html,body,body *,button,input,select,textarea,
 .back-entry-btn{margin-top:10px;width:100%;white-space:nowrap}
 @media(max-width:620px){.back-entry-btn{width:100%}}
 
-/* v31: v29の音量レイアウトに戻し、高さだけ揃える */
-.bgm-panel,
+/* v32: PCは元レイアウトのまま、効果音だけ高さを揃える */
 .sfx-panel{
+  margin-top:0 !important;
   align-items:center !important;
 }
-.bgm-panel > *,
-.sfx-panel > *{
+.bgm-panel>strong,
+.bgm-panel>button,
+.bgm-panel>span,
+.bgm-panel>input,
+.sfx-panel>strong,
+.sfx-panel>span,
+.sfx-panel>input{
   align-self:center !important;
 }
-.bgm-panel button,
-.sfx-panel button{
-  height:48px !important;
-  margin-top:0 !important;
-  margin-bottom:0 !important;
+.bgm-panel button{height:48px !important}
+
+/* チャット */
+.chat-wrap{margin-top:12px}
+.chat-toggle{
+  width:100%;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:16px 18px;
+  border:1px solid #303746;
+  border-radius:14px;
+  background:#0d1017;
+  color:#fff;
+  cursor:pointer;
 }
-.bgm-panel input[type=range],
-.sfx-panel input[type=range]{
-  margin-top:0 !important;
-  margin-bottom:0 !important;
-  vertical-align:middle;
+.chat-body{
+  display:none;
+  margin-top:10px;
+  padding:14px;
+  border:1px solid #303746;
+  border-radius:14px;
+  background:#0d1017;
+}
+.chat-body.open{display:block}
+.chat-log{
+  max-height:260px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:4px;
+}
+.chat-msg{
+  padding:8px 10px;
+  border-radius:10px;
+  background:#161b24;
+  line-height:1.45;
+}
+.chat-name{font-size:13px;margin-right:8px}
+.chat-text{word-break:break-word}
+.chat-send-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:12px}
+.chat-send-row input{min-width:0}
+.chat-send-row button{white-space:nowrap}
+
+/* スマホのみ */
+@media(max-width:620px){
+  /* 音量：1行目 BGM / 音量 / バー / ONOFF、2行目 効果音 / 音量 / バー */
+  .bgm-panel{
+    display:grid !important;
+    grid-template-columns:auto auto minmax(0,1fr) auto !important;
+    gap:10px 8px !important;
+    align-items:center !important;
+    padding:12px !important;
+  }
+  .bgm-panel .bgm-title{grid-column:1;grid-row:1;white-space:nowrap}
+  .bgm-panel>span:not(.vol-label){grid-column:2;grid-row:1;white-space:nowrap}
+  .bgm-panel #bgmVolume{grid-column:3;grid-row:1;width:100% !important;min-width:0}
+  .bgm-panel #bgmToggle{
+    grid-column:4;grid-row:1;
+    min-width:72px !important;
+    width:auto !important;
+    height:42px !important;
+    padding:8px 10px !important;
+  }
+  .bgm-panel #bgmVolumeLabel{
+    display:none !important;
+  }
+  .sfx-panel{
+    display:contents !important;
+  }
+  .sfx-panel strong{grid-column:1;grid-row:2;white-space:nowrap}
+  .sfx-panel>span:not(.vol-label){grid-column:2;grid-row:2;white-space:nowrap}
+  .sfx-panel #sfxVolume{grid-column:3 / 5;grid-row:2;width:100% !important;min-width:0}
+  .sfx-panel #sfxVolumeLabel{display:none !important}
+
+  /* 参加者はスマホで3人/行。カードをコンパクト化 */
+  .players{
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    gap:7px !important;
+  }
+  .card{
+    min-height:108px !important;
+    padding:8px !important;
+    border-width:2px !important;
+    border-radius:12px !important;
+  }
+  .card-name{
+    font-size:13px !important;
+    line-height:1.15 !important;
+    overflow-wrap:anywhere;
+  }
+  .card-name small{font-size:9px !important}
+  .card-status{margin-top:6px !important}
+  .status-badge{
+    min-width:0 !important;
+    width:auto !important;
+    max-width:100%;
+    padding:4px 6px !important;
+    font-size:10px !important;
+    letter-spacing:0 !important;
+  }
+  .submit-state,.offline-note{
+    margin-top:4px !important;
+    font-size:9px !important;
+    line-height:1.2 !important;
+  }
+  .card-hand{
+    font-size:30px !important;
+    margin-top:7px !important;
+  }
+  .color-edit{
+    gap:3px !important;
+    margin-top:5px !important;
+    font-size:9px !important;
+  }
+  .color-edit input[type="color"]{
+    width:27px !important;
+    height:23px !important;
+  }
+  .kick-btn{
+    margin-top:5px !important;
+    padding:5px 3px !important;
+    font-size:9px !important;
+  }
+  .participant-panel{padding:10px !important}
+  .participant-panel h2{font-size:22px !important}
+  .chat-toggle{font-size:17px !important;padding:14px !important}
+  .chat-body{padding:10px}
+  .chat-log{max-height:220px}
 }
 
 .kick-btn{
@@ -341,6 +465,21 @@ html,body,body *,button,input,select,textarea,
       <div class="muted">部屋コード</div>
       <div id="code" class="code"></div>
       <button class="dark back-entry-btn" onclick="backToEntry()">← 最初の画面に戻る</button>
+    </div>
+  </div>
+
+  <div class="panel chat-wrap">
+    <button class="chat-toggle" type="button" onclick="toggleChat()">
+      <span>💬 チャット</span><span id="chatArrow">▼</span>
+    </button>
+    <div id="chatBody" class="chat-body">
+      <div id="chatLog" class="chat-log">
+        <div class="summary-empty">まだメッセージはありません</div>
+      </div>
+      <div class="chat-send-row">
+        <input id="chatInput" maxlength="200" placeholder="メッセージを入力" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat()}">
+        <button class="primary" onclick="sendChat()">送信</button>
+      </div>
     </div>
   </div>
 
@@ -628,6 +767,20 @@ function kickPlayer(playerId,name){
 }
 function overlay(){ensureAudio();socket.emit("overlay",{text:"構えて！",duration:2600})}
 function toggleRules(){const b=$("rulesBody"),a=$("rulesArrow");const o=b.classList.toggle("open");a.textContent=o?"▲":"▼"}
+function toggleChat(){
+  const b=$("chatBody"),a=$("chatArrow");
+  const o=b.classList.toggle("open");
+  a.textContent=o?"▲":"▼";
+  if(o)setTimeout(()=>{const l=$("chatLog");if(l)l.scrollTop=l.scrollHeight},0);
+}
+function sendChat(){
+  const i=$("chatInput");
+  if(!i)return;
+  const text=i.value.trim();
+  if(!text)return;
+  socket.emit("chatMessage",text);
+  i.value="";
+}
 
 function tryResume(){
   if(!session||!session.code||!session.name)return;
@@ -762,6 +915,20 @@ socket.on("state",s=>{
   $("loserList").innerHTML=currentLosers.length
     ? currentLosers.map(p=>`<div class="summary-person summary-loser" style="--pcolor:${p.color||"#888"}"><span class="summary-dot"></span>${esc(p.name)}</div>`).join("")
     : `<div class="summary-empty">まだいません</div>`;
+
+  const chat=s.chat||[];
+  const chatLog=$("chatLog");
+  if(chatLog){
+    chatLog.innerHTML=chat.length
+      ? chat.map(m=>`<div class="chat-msg">
+          <span class="chat-name" style="color:${m.color||"#fff"}">${esc(m.name)}</span>
+          <span class="chat-text">${esc(m.text)}</span>
+        </div>`).join("")
+      : `<div class="summary-empty">まだメッセージはありません</div>`;
+    if($("chatBody")&&$("chatBody").classList.contains("open")){
+      chatLog.scrollTop=chatLog.scrollHeight;
+    }
+  }
 
   if(s.overlay&&s.overlay.at!==lastOv){
     lastOv=s.overlay.at;
