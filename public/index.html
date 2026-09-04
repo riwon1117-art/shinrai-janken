@@ -222,20 +222,27 @@ html,body,body *,button,input,select,textarea,
 .back-entry-btn{margin-top:10px;width:100%;white-space:nowrap}
 @media(max-width:620px){.back-entry-btn{width:100%}}
 
-/* v30: BGM / 効果音コントロール整列 */
-.bgm-panel{
-  display:grid !important;
-  grid-template-columns:auto auto minmax(140px,260px) 64px auto auto minmax(140px,260px) 64px;
+/* v31: v29の音量レイアウトに戻し、高さだけ揃える */
+.bgm-panel,
+.sfx-panel{
   align-items:center !important;
-  column-gap:10px !important;
-  row-gap:10px !important;
 }
-.bgm-panel button{min-width:110px;height:46px}
+.bgm-panel > *,
+.sfx-panel > *{
+  align-self:center !important;
+}
+.bgm-panel button,
+.sfx-panel button{
+  height:48px !important;
+  margin-top:0 !important;
+  margin-bottom:0 !important;
+}
 .bgm-panel input[type=range],
-.sfx-panel input[type=range]{width:100% !important;margin:0}
-.bgm-panel .vol-label,
-.sfx-panel .vol-label{min-width:64px;text-align:right}
-.sfx-panel{display:contents !important}
+.sfx-panel input[type=range]{
+  margin-top:0 !important;
+  margin-bottom:0 !important;
+  vertical-align:middle;
+}
 
 .kick-btn{
   margin-top:10px;
@@ -247,35 +254,7 @@ html,body,body *,button,input,select,textarea,
 }
 .kick-btn:hover{filter:brightness(1.12)}
 
-@media(max-width:760px){
-  .bgm-panel{
-    grid-template-columns:auto minmax(0,1fr) 58px !important;
-    width:100% !important;
-  }
-  .bgm-panel > strong,
-  .bgm-panel > button,
-  .bgm-panel > span,
-  .bgm-panel > input,
-  .sfx-panel > strong,
-  .sfx-panel > span,
-  .sfx-panel > input{
-    min-width:0 !important;
-  }
-  .bgm-panel button{
-    width:100% !important;
-    min-width:0 !important;
-  }
-  .bgm-panel .bgm-title{grid-column:1}
-  .bgm-panel #bgmToggle{grid-column:2 / 4}
-  .bgm-panel .bgm-volume-text{grid-column:1}
-  .bgm-panel #bgmVolume{grid-column:2}
-  .bgm-panel #bgmVolumeLabel{grid-column:3}
-  .sfx-panel{display:contents !important}
-  .sfx-panel strong{grid-column:1}
-  .sfx-panel > span:not(.vol-label){display:none}
-  .sfx-panel #sfxVolume{grid-column:2}
-  .sfx-panel #sfxVolumeLabel{grid-column:3}
-}
+
 
 </style>
 </head>
