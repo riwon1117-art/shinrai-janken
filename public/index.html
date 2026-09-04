@@ -380,6 +380,56 @@ html,body,body *,button,input,select,textarea,
 
 
 
+
+/* v33: 参加者切断ボタンを小型化 */
+.kick-btn{
+  width:auto !important;
+  min-width:0 !important;
+  padding:5px 9px !important;
+  font-size:11px !important;
+  line-height:1.2 !important;
+  border-radius:8px !important;
+  margin-top:6px !important;
+}
+
+/* v33: スマホの公開結果を1画面で見渡しやすく圧縮 */
+@media(max-width:620px){
+  .reveal-grid{
+    gap:6px !important;
+    padding:8px !important;
+    align-content:center !important;
+  }
+  .reveal-card{
+    min-height:0 !important;
+    padding:7px 5px !important;
+    border-width:2px !important;
+    border-radius:12px !important;
+  }
+  .reveal-name{
+    font-size:11px !important;
+    line-height:1.1 !important;
+    margin-bottom:2px !important;
+    overflow-wrap:anywhere !important;
+  }
+  .reveal-hand{
+    font-size:30px !important;
+    line-height:1 !important;
+  }
+  .reveal-title{
+    font-size:17px !important;
+    padding:6px 8px !important;
+    line-height:1.15 !important;
+  }
+  .reveal-screen{
+    padding:6px !important;
+  }
+  .kick-btn{
+    padding:3px 5px !important;
+    font-size:8px !important;
+    margin-top:4px !important;
+  }
+}
+
 </style>
 </head>
 <body>
