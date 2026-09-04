@@ -218,6 +218,9 @@ html,body,body *,button,input,select,textarea,
   .top{width:100%!important}
 }
 
+
+.back-entry-btn{margin-top:10px;width:100%;white-space:nowrap}
+@media(max-width:620px){.back-entry-btn{width:100%}}
 </style>
 </head>
 <body>
@@ -264,15 +267,7 @@ html,body,body *,button,input,select,textarea,
           <h3>残り2人</h3>
           <p>勝利枠に関係なく、勝利していない生存者が残り2人になったら通常のじゃんけんに切り替わります。✊は✌️に勝ち、✌️は✋に勝ち、✋は✊に勝ちます。あいこならもう一度です。</p>
 
-          <h3>勝利枠に合わせた人数処理</h3>
-          <p>勝利枠は必ず人数分を確定させてから終了します。途中で脱落者が多くなり、勝利枠を満たせなくなる処理は行いません。</p>
-          <p>例：勝利枠2で「✋✋✋✌️」なら、✌️の1人が勝利確定。✋の3人は脱落せず、残り1枠をかけて再戦します。</p>
-          <p>例：勝利枠2で「✋✋✋✊」なら、✊だけ脱落。✋の3人にはリーチを付けず、3人で2枠をかけて再戦します。</p>
-          <p>例：すでに1人脱落していて、勝利枠2・残り3人が「✋✋✊」なら、✊だけ脱落し、✋の2人がそのまま勝利確定です。じゃんけん相手が残らない✊を生存させて✋にリーチを付ける処理は行いません。</p>
-          <p>同じ考え方で人数が増えた場合も、残り勝利枠と各手の人数を見て、勝利枠を必ず満たせる形で続行します。</p>
-
-          <h3>勝利枠</h3>
-          <p>残っている人数が残りの「勝利枠」と同じになった時点で、その人たちは全員勝利になります。勝利枠より人数が少ない状態ではゲーム終了になりません。例：勝利枠2でまだ勝者が0人なら、残り2人になった時点で2人とも勝利です。すでに1人勝利している場合は、残り1人になった時点でその人も勝利になります。</p>
+          
         </div>
       </div>
 <div id="revealOverlay" class="reveal-overlay hidden">
@@ -310,6 +305,7 @@ html,body,body *,button,input,select,textarea,
     <div>
       <div class="muted">部屋コード</div>
       <div id="code" class="code"></div>
+      <button class="dark back-entry-btn" onclick="backToEntry()">← 最初の画面に戻る</button>
     </div>
   </div>
 
@@ -554,6 +550,12 @@ function join(){
 function choose(h){ensureAudio();socket.emit("choose",h)}
 function reveal(){ensureAudio();socket.emit("reveal")}
 function next(){socket.emit("next")}
+function backToEntry(){
+  localStorage.removeItem(SESSION_KEY);
+  session=null;
+  try{socket.disconnect()}catch(e){}
+  location.reload();
+}
 function resetG(){if(confirm("リセットしますか？"))socket.emit("reset")}
 function setTarget(n){socket.emit("setWinTarget",+n)}
 function setPlayerColor(playerId,color){socket.emit("setPlayerColor",{playerId,color})}
